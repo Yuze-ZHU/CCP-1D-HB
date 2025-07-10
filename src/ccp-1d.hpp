@@ -22,10 +22,8 @@
 #include <array>
 #include "def.hpp"
 #include <petsc.h>
-
 #include "../eigen-3.3.9/Eigen/Dense"
 #include "../eigen-3.3.9/Eigen/Sparse"
-
 // Typedefs
 
 using label = long long int;
@@ -185,7 +183,6 @@ namespace FVM
         //- Chemical source Jacobian
         std::vector<Eigen::MatrixXd> jacobianCs;
         
-
         // Constructor
         //- Construct by id
         explicit Cell(const label i);
@@ -272,6 +269,9 @@ namespace FVM
         void getFluxJacobianFCI();
         void getFluxJacobianLeftBCFCI();
         void getFluxJacobianRightBCFCI();
+
+        //- Get the negative value of flux jaocobian
+        void getFluxJacobianNeg();
     };
 
     class Solver
@@ -328,6 +328,11 @@ namespace FVM
         //- Harmonic balance source Jacobian
         Eigen::MatrixXd jacobianHBs;
 
+        //- FluxJoule Jacobian(Joule source term)
+        std::vector<std::vector<Eigen::MatrixXd>> jacobianFluxJouleLCell;
+        std::vector<std::vector<Eigen::MatrixXd>> jacobianFluxJouleCCell;
+        std::vector<std::vector<Eigen::MatrixXd>> jacobianFluxJouleRCell;        
+
         // Module for solving Poisson's equation using the FVM framework: A·x = b
         //- Coefficient matrix A for the discretized Poisson's equation
         Mat poissonMat;
@@ -366,7 +371,6 @@ namespace FVM
         //- Calculate the metrics for the grid
         void gridMetrics();
 
-
         //- Read solution from the initial file
         void readQuasiSteadySolution(const std::string& filePath);
 
@@ -377,7 +381,7 @@ namespace FVM
         void initRK();
 
         //- Calculate the slope of the variables
-        void calSlope();
+        void getSlope();
 
         //- Evolution
         void evolve();
@@ -391,6 +395,22 @@ namespace FVM
         void updateFluidExplicit(const label iRK);
         void updateFluidImplicitEK(const label iRK);
         void updateFluidImplicitE(const label iRK);
+
+        //- Get the Joule flux source Jacobian
+        void getFluxJouleJacobian();
+    
+        //- Get chemical source Jacobian
+        void getCsJacobian();
+        void getCsJacobianNeg();
+
+        //- Get mass stiffness matrix
+        void getMassDiagnal();
+
+        //- Assembel global RHS vector
+        void assembleGlobalVecRHS(const label iRK);
+
+        //- Assembel local flux Jacobian matrix
+        void assembleLocalFluxJacobian();
 
         //- Update Phi for electric potential
         void setupPoisson();
@@ -420,6 +440,7 @@ namespace FVM
         //- Print residual information
         void infoRes();
         void calRes();
+
         // Calculation option
         bool isExplicitDT() const;
 

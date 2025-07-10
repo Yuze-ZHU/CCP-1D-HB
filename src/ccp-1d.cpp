@@ -26,12 +26,10 @@
 #include <sstream>
 #include <string>
 #include <cstring>
-#include <petsc.h>
 #include <vector>
 #include "ccp-1d.hpp"
 #include "Const.hpp"
 #include "def.hpp"
-
 #include <cmath>
 
 // ------------------------------------------------------ //
@@ -292,7 +290,8 @@ FVM::Cell::Cell(const label i)
     //- Primitive variables at the previous time step
     TeOld(Const::numT),    
     
-    //- Residual flux of conservative variables (including flux and source term, updating the conservative variables)
+    //- Residual flux of conservative variables 
+    //- (including flux and source term, updating the conservative variables)
     ResFluxNe(Eigen::VectorXd::Zero(Const::numT)),
     ResFluxNi(Eigen::VectorXd::Zero(Const::numT)),
     ResFluxEe(Eigen::VectorXd::Zero(Const::numT)),
@@ -587,6 +586,22 @@ FVM::Solver::Solver()
             std::cout << " ------ Constructing matrices and vectors for implicit scheme finished --------"
                       << std::endl;
        }
+    
+    jacobianFluxJouleLCell.resize(Const::numT);
+    jacobianFluxJouleCCell.resize(Const::numT);
+    jacobianFluxJouleRCell.resize(Const::numT);
+    for (label iT = 0; iT < Const::numT; ++iT) 
+    {
+        jacobianFluxJouleLCell[iT].resize(Const::numCells);
+        jacobianFluxJouleCCell[iT].resize(Const::numCells);
+        jacobianFluxJouleRCell[iT].resize(Const::numCells);       
+        for (label i = 0; i < Const::numCells; ++i) 
+        {
+            jacobianFluxJouleLCell[iT][i] = Eigen::MatrixXd::Zero(Const::blockSizeS, Const::blockSizeS);
+            jacobianFluxJouleCCell[iT][i] = Eigen::MatrixXd::Zero(Const::blockSizeS, Const::blockSizeS);
+            jacobianFluxJouleRCell[iT][i] = Eigen::MatrixXd::Zero(Const::blockSizeS, Const::blockSizeS);        
+        }
+    }
 
     std::cout << " ------ Finish Construct Solver" << std::endl;
 }
@@ -794,7 +809,69 @@ void FVM::Solver::getDt(bool& isWritingStepCal, bool& isResWritingStepCal, bool&
     }
 }
 
-void FVM::Solver::calSlope()
+void FVM::Solver::getMassDiagnal()
+{
+    using namespace Const;
+    for (label i = 0; i < numCells; ++i)
+    {
+        for (label bs = 0; bs < blockSizeS; ++bs)
+        {
+            cells[i].massDiagnal(bs, bs) = cells[i].vol / cells[i].dt;
+        }
+    }
+}
+
+void FVM::Solver::assembleGlobalVecRHS(const label iRK)
+{
+    using namespace Const;
+    using namespace Tools;
+    VecSet(rhsGlobal, 0.0);
+    scalar TeV;
+
+    for (label iT = 0; iT < numT; ++iT)
+    { 
+        for (label i = 0; i < numCells; ++i)
+        {
+            PetscScalar rhsiTCell[4];
+            PetscInt blockID = iT * numCells + i;
+
+            TeV = KToeV(EeToTe(cells[i].Ne(iT) * nRef, cells[i].Ee(iT) * EeRef));
+            cells[i].kl(iT) = chemSets.interpolateChem(TeV) / klRef;
+
+            cells[i].cS(iT)          = cells[i].kl(iT) * cells[i].Ne(iT) * N;
+            cells[i].Je(iT)          = (faces[i].fluxNe(iT) + faces[i + 1].fluxNe(iT)) / 2.0;
+            cells[i].Ji(iT)          = (faces[i].fluxNi(iT) + faces[i + 1].fluxNi(iT)) / 2.0;
+
+            //- Flux terms
+            cells[i].ResFluxNe(iT)   = alpha[iRK]*(faces[i].fluxNe(iT) - faces[i + 1].fluxNe(iT));
+            cells[i].ResFluxNi(iT)   = alpha[iRK]*(faces[i].fluxNi(iT) - faces[i + 1].fluxNi(iT));
+            cells[i].ResFluxEe(iT)   = alpha[iRK]*(faces[i].fluxEe(iT) - faces[i + 1].fluxEe(iT));
+            cells[i].ResFluxEe(iT)  += alpha[iRK]*(faces[i].fluxEeJoule(iT) - faces[i + 1].fluxEeJoule(iT)) 
+                                     * cells[i].Phi(iT);
+            cells[i].ResFluxPhi(iT)  = alpha[iRK] * (faces[i].fluxPhi(iT) - faces[i + 1].fluxPhi(iT));
+
+            //- Source terms
+            cells[i].ResFluxNe(iT)  += alpha[iRK] * cells[i].kl(iT) * N * cells[i].Ne(iT) * cells[i].vol; 
+            cells[i].ResFluxNi(iT)  += alpha[iRK] * cells[i].kl(iT) * N * cells[i].Ne(iT) * cells[i].vol;
+            cells[i].ResFluxEe(iT)  -= alpha[iRK] * cells[i].kl(iT) * N * cells[i].Ne(iT) * Hl * cells[i].vol;
+            cells[i].ResFluxPhi(iT) += alpha[iRK] * (cells[i].Ne(iT) - cells[i].Ni(iT))* cells[i].vol * e;
+
+            rhsiTCell[0] = cells[i].ResFluxNe(iT);
+            rhsiTCell[1] = cells[i].ResFluxNi(iT);
+            rhsiTCell[2] = cells[i].ResFluxEe(iT);
+            rhsiTCell[3] = cells[i].ResFluxPhi(iT);
+
+            VecSetValuesBlocked(rhsGlobal, 1, &blockID, rhsiTCell, INSERT_VALUES);
+
+        }
+    }
+    VecAssemblyBegin(rhsGlobal);
+    VecAssemblyEnd(rhsGlobal);
+}
+
+
+
+void FVM::Solver::getSlope()
 {
     using namespace Const;
     using Tools::abs;
@@ -1670,7 +1747,7 @@ void FVM::Solver::iterateExplicit()
         while ( iRK < nRK )
         {
             // Get the slopes based on MUSCL limiter
-            calSlope();
+            getSlope();
 
             // Get the fluxes of each face
             evolve();
