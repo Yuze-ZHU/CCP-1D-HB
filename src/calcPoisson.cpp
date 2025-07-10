@@ -10,7 +10,7 @@ void FVM::Solver::setupPoisson()
     using Tools::toRowMajor;
     MatZeroEntries(poissonMat);
     // Solving A · x = b
-    Eigen::MatrixXd A(numCells, numCells);
+    RowMajorMatrixXd A(numCells, numCells);
 
     A.setZero();
     // Construct matrix A
@@ -30,16 +30,14 @@ void FVM::Solver::setupPoisson()
             A(i, i + 1) =  -eps0 * invDxR; 
         }                  
     }
-        
-    const Eigen::MatrixXd& subMat = A;
-    auto matBlockVals                = toRowMajor(subMat);       
+             
 
     for (PetscInt iT = 0; iT < numT; ++iT)
     {
         PetscInt matBlockidx = iT;                               
         MatSetValuesBlocked(poissonMat,
                             1, &matBlockidx, 1, &matBlockidx,
-                            matBlockVals.data(), INSERT_VALUES);
+                            A.data(), INSERT_VALUES);
     }
 
     MatAssemblyBegin(poissonMat, MAT_FINAL_ASSEMBLY);

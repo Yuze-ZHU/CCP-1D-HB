@@ -248,22 +248,6 @@ scalar FVM::ChemSet::interpolateChem(const scalar E)
 
 }
 
-FVM::PhiDecSolver::PhiDecSolver(){}
-
-FVM::PhiDecSolver::~PhiDecSolver(){}
-
-void FVM::PhiDecSolver::createLU()
-{
-    solver = M.llt();
-}
-
-
-
-
-void FVM::PhiDecSolver::solverApply(Eigen::VectorXd &F,Eigen::VectorXd &Phi_)
-{
-    Phi_ = solver.solve(F);
-}
 
 FVM::Cell::Cell(const label i)
     : vol(0.0), cellID(i), dt(0.0), dtau(0.0), 
@@ -304,7 +288,7 @@ FVM::Cell::Cell(const label i)
     sPhi(Eigen::VectorXd::Zero(Const::numT)),
 
     //- Stiffness matrix
-    massDiagnal(Eigen::MatrixXd::Zero(Const::blockSizeS, Const::blockSizeS))
+    massDiagnal(RowMajorMatrixXd::Zero(Const::blockSizeS, Const::blockSizeS))
 
 {
     // Matrix for the chemical reaction
@@ -323,7 +307,7 @@ FVM::Cell::Cell(const label i)
         EeOld(iT)  = Ee(iT);
         PhiOld(iT) = Phi(iT);
 
-        jacobianCs[iT] = Eigen::MatrixXd::Zero(Const::blockSizeS, Const::blockSizeS);
+        jacobianCs[iT] = RowMajorMatrixXd::Zero(Const::blockSizeS, Const::blockSizeS);
     }
 }
 
@@ -366,6 +350,16 @@ FVM::Face::Face(const Cell &Lcell, const Cell &Rcell)
     fluxEeJoule(Eigen::VectorXd::Zero(Const::numT)),
     fluxPhi(Eigen::VectorXd::Zero(Const::numT))
 {
+    
+    if (faceID == 0)
+    {
+        cellIDL = -1;
+    }
+    else if (faceID = Const::numCells)
+    {
+        cellIDR = -1;
+    }
+
     //- Flux Jacobian
     jacobianFluxL.resize(Const::numT);
     jacobianFluxR.resize(Const::numT);
@@ -374,10 +368,10 @@ FVM::Face::Face(const Cell &Lcell, const Cell &Rcell)
     for (label iT = 0; iT < Const::numT; ++iT)
     {
 
-        jacobianFluxL[iT]    = Eigen::MatrixXd::Zero(Const::blockSizeS, Const::blockSizeS);
-        jacobianFluxR[iT]    = Eigen::MatrixXd::Zero(Const::blockSizeS, Const::blockSizeS);
-        jacobianFluxLNeg[iT] = Eigen::MatrixXd::Zero(Const::blockSizeS, Const::blockSizeS);
-        jacobianFluxRNeg[iT] = Eigen::MatrixXd::Zero(Const::blockSizeS, Const::blockSizeS);
+        jacobianFluxL[iT]    = RowMajorMatrixXd::Zero(Const::blockSizeS, Const::blockSizeS);
+        jacobianFluxR[iT]    = RowMajorMatrixXd::Zero(Const::blockSizeS, Const::blockSizeS);
+        jacobianFluxLNeg[iT] = RowMajorMatrixXd::Zero(Const::blockSizeS, Const::blockSizeS);
+        jacobianFluxRNeg[iT] = RowMajorMatrixXd::Zero(Const::blockSizeS, Const::blockSizeS);
     }
 }
 
@@ -474,13 +468,13 @@ FVM::Solver::Solver()
     resTe(Eigen::VectorXd::Zero(Const::numT)),
 
     //- Time spectral source matrix, E
-    harmMat(Eigen::MatrixXd::Zero(Const::numT, Const::numT)),
+    harmMat(RowMajorMatrixXd::Zero(Const::numT, Const::numT)),
 
     //- DFT matrix, D
-    dftMat(Eigen::MatrixXd::Zero(Const::numT, Const::numT)),
+    dftMat(RowMajorMatrixXd::Zero(Const::numT, Const::numT)),
 
     //- Inverse of DFT matrix, D^-1
-    dftMatInv(Eigen::MatrixXd::Zero(Const::numT, Const::numT)),
+    dftMatInv(RowMajorMatrixXd::Zero(Const::numT, Const::numT)),
 
     //- Time instants
     harmTime(Eigen::VectorXd::Zero(Const::numT)),
@@ -489,7 +483,7 @@ FVM::Solver::Solver()
     angFreq(Eigen::VectorXd::Zero(Tools::max(Const::numH, 1))),
 
     //- Harmonic balance source Jacobian
-    jacobianHBs(Eigen::MatrixXd::Zero(Const::blockSizeS, Const::blockSizeS))    
+    jacobianHBs(RowMajorMatrixXd::Zero(Const::blockSizeS, Const::blockSizeS))    
 
 {
     std::cout << " ------ Starting constructing solver ------ " << std::endl;
@@ -597,9 +591,9 @@ FVM::Solver::Solver()
         jacobianFluxJouleRCell[iT].resize(Const::numCells);       
         for (label i = 0; i < Const::numCells; ++i) 
         {
-            jacobianFluxJouleLCell[iT][i] = Eigen::MatrixXd::Zero(Const::blockSizeS, Const::blockSizeS);
-            jacobianFluxJouleCCell[iT][i] = Eigen::MatrixXd::Zero(Const::blockSizeS, Const::blockSizeS);
-            jacobianFluxJouleRCell[iT][i] = Eigen::MatrixXd::Zero(Const::blockSizeS, Const::blockSizeS);        
+            jacobianFluxJouleLCell[iT][i] = RowMajorMatrixXd::Zero(Const::blockSizeS, Const::blockSizeS);
+            jacobianFluxJouleCCell[iT][i] = RowMajorMatrixXd::Zero(Const::blockSizeS, Const::blockSizeS);
+            jacobianFluxJouleRCell[iT][i] = RowMajorMatrixXd::Zero(Const::blockSizeS, Const::blockSizeS);        
         }
     }
 
@@ -610,6 +604,13 @@ FVM::Solver::~Solver()
 {
 
 }
+
+inline void FVM::Solver::addValuesBlock(Mat &mat, PetscInt row, PetscInt col,
+                         const Eigen::Matrix<scalar, 4, 4, Eigen::RowMajor> &block)
+{
+    MatSetValuesBlocked(mat, 1, &row, 1, &col, block.data(), ADD_VALUES);
+}
+
 
 void FVM::Solver::initlize()
 {
@@ -629,9 +630,9 @@ void FVM::Solver::initHarmonicMat()
     const double T    = period;
     double dtheta;
 
-    Eigen::MatrixXd D     = Eigen::MatrixXd::Zero(numT, numT);
-    Eigen::MatrixXd Dt    = Eigen::MatrixXd::Zero(numT, numT);
-    Eigen::MatrixXd D_inv = Eigen::MatrixXd::Zero(numT, numT);
+    RowMajorMatrixXd D     = RowMajorMatrixXd::Zero(numT, numT);
+    RowMajorMatrixXd Dt    = RowMajorMatrixXd::Zero(numT, numT);
+    RowMajorMatrixXd D_inv = RowMajorMatrixXd::Zero(numT, numT);
 
 
     // Initialize the harmonic time vector, angular frequency vector
@@ -809,6 +810,39 @@ void FVM::Solver::getDt(bool& isWritingStepCal, bool& isResWritingStepCal, bool&
     }
 }
 
+void FVM::Solver::getDtau()
+{
+    // Physical time and Pseudo time share the same notation dt;
+    using namespace Const;
+    using Tools::min;
+
+    dtminGlobal = 1e150;
+
+    for (label i = 0; i < numCells; ++i)
+    {
+        scalar dtminLocal   = 1e150;
+        const scalar dtDiff = 0.25 * cells[i].vol * cells[i].vol / De;
+        for(label nT = 0; nT < numT; ++nT)
+        {
+            const scalar dtConv = cells[i].vol / (muE * abs(cells[i].Ec[nT]) + 1e-120 );
+            scalar dtmin1       = min(dtDiff, dtConv);
+            dtminLocal          = min(dtminLocal, dtmin1);   
+        }
+        // Modified local time step based on the biggest harmonic frequency
+        dtminLocal  = CFL * (1. / (1. / dtminLocal + 2.0 * pi * fRF * numH));
+        cells[i].dt = dtminLocal; 
+        dtminGlobal = min(cells[i].dt, dtminGlobal);
+    }
+    
+    if (timeStepType == TimeStepType::GLOBAL)
+    {
+        for (label i = 0; i < numCells; ++i)
+        {
+            cells[i].dt = dtminGlobal;
+        }
+    }
+}
+
 void FVM::Solver::getMassDiagnal()
 {
     using namespace Const;
@@ -869,6 +903,96 @@ void FVM::Solver::assembleGlobalVecRHS(const label iRK)
     VecAssemblyEnd(rhsGlobal);
 }
 
+void FVM::Solver::assembleLocalFluxJacobian()
+{
+    using namespace Const;
+    for (auto &face : faces)
+    {
+        if (face.faceID == 0)
+        {
+           
+            face.getFluxJacobianLeftBCFCI();
+            face.getFluxJacobianNeg();
+        }
+        else if (face.faceID == numCells)
+        {
+            
+            face.getFluxJacobianRightBCFCI();
+            face.getFluxJacobianNeg();
+        }
+        else
+        {
+            
+            face.getFluxJacobianFCI();
+            face.getFluxJacobianNeg();
+        }
+    }    
+}
+
+void FVM::Solver::assembleGlobalJacobian()
+{
+    using namespace Const;
+    using namespace Tools;
+    DiagnalMatrixXd4 identity4 = DiagnalMatrixXd4::Identity();
+    MatZeroEntries(jacobianAllGlobal);
+    for (label iT = 0; iT < numT; ++iT)
+    {
+        // --- 1.  Flux Jacobian ---
+        // --- 1.1 Flux Jacobian from the interior faces ---
+        for (label f = 1; f < numCells; ++f)
+        {
+            const auto &face = faces[f];
+
+            PetscInt idL = iT * numCells + face.cellIDL;
+            PetscInt idR = iT * numCells + face.cellIDR;
+
+            addValuesBlock(jacobianAllGlobal, idL, idL, face.jacobianFluxL[iT]);
+            addValuesBlock(jacobianAllGlobal, idL, idR, face.jacobianFluxR[iT]);
+            addValuesBlock(jacobianAllGlobal, idR, idL, face.jacobianFluxLNeg[iT]);
+            addValuesBlock(jacobianAllGlobal, idR, idR, face.jacobianFluxRNeg[iT]);
+        }
+        // --- 1.2 Flux Jacobian from the left boundary faces ---       
+        const auto &faceLBC = faces[0];
+        PetscInt idRLBC = iT * numCells + faceLBC.cellIDR;
+        addValuesBlock(jacobianAllGlobal, idRLBC, idRLBC, faceLBC.jacobianFluxRNeg[iT]);
+
+        // --- 1.3 Flux Jacobian from the right boundary faces ---      
+        const auto &faceRBC = faces[numCells];
+        PetscInt idLRBC = iT * numCells + faceRBC.cellIDL;
+        addValuesBlock(jacobianAllGlobal, idLRBC, idLRBC, faceRBC.jacobianFluxL[iT]);
+    
+        // --- 2.  Mass + chemical + joule source Jacaobian ---
+        for (label i = 0; i < numCells; ++i)
+        {
+            PetscInt idC = iT * numCells + i;
+            PetscInt idR = idC + 1;
+            PetscInt idL = idC - 1;
+
+            // --- 2.1 Mass + chemical source ---
+            auto sumDiag = cells[i].massDiagnal + cells[i].jacobianCs[iT];
+            addValuesBlock(jacobianAllGlobal, idC, idC, sumDiag);
+
+            // --- 2.2 Joule source contribution ---
+            if (i > 0) addValuesBlock(jacobianAllGlobal, idC, idL, jacobianFluxJouleLCell[iT][i]);
+            if (i < numCells - 1) addValuesBlock(jacobianAllGlobal, idC, idR, jacobianFluxJouleRCell[iT][i]);
+            addValuesBlock(jacobianAllGlobal, idC, idC, jacobianFluxJouleCCell[iT][i]);
+        }
+        // --- 3.  Harmonic balance source Jacobian ---
+        for (label jT = 0; jT < numT; ++jT)
+        {
+            scalar Eij = harmMat(iT, jT);
+            for (label i = 0; i < numCells; ++i)
+            {
+                PetscInt row = iT  * numCells + i;
+                PetscInt col = jT  * numCells + i;
+                jacobianHBs  = Eij * identity4;
+                addValuesBlock(jacobianAllGlobal, row, col, jacobianHBs);
+            }
+        }
+    }
+    MatAssemblyBegin(jacobianAllGlobal, MAT_FINAL_ASSEMBLY);
+    MatAssemblyEnd(jacobianAllGlobal, MAT_FINAL_ASSEMBLY);
+}
 
 
 void FVM::Solver::getSlope()
@@ -926,7 +1050,7 @@ void FVM::Solver::getSlope()
 
 void FVM::Solver::evolve()
 {
-    using Const::numNodes;
+    using Const::numCells;
     for (auto &face : faces)
     {
         // Obtain the values at right and left sides of the faces
@@ -935,7 +1059,7 @@ void FVM::Solver::evolve()
         {
             face.getFluxLeftBC();
         }
-        else if (face.faceID == numNodes - 1)
+        else if (face.faceID == numCells)
         {
             face.getFluxRightBC();  
         }
@@ -1824,7 +1948,99 @@ void initDebugLogs()
 
 void FVM::Solver::iterateHBFCI()
 {
+    using namespace Const;  
+    auto stepStart = std::chrono::high_resolution_clock::now();
+ 
+    std::ofstream stopFile(outputDir +"/stop.dat", std::ios::trunc);
+    if (!stopFile.is_open()) {
+        std::cerr << "Error: Cannot create stop.dat file!" << std::endl;
+        return;
+    }
+    stopFile << "0" << std::endl; 
+    stopFile.close(); 
 
+    std::cout << "Starting iterating..." << std::endl;
+    while (step < stopStep)
+    {
+        std::ifstream checkStopFile(outputDir +"/stop.dat");
+        if (checkStopFile.is_open()) 
+        {
+            label stopSignal = 0;
+            checkStopFile >> stopSignal;
+            checkStopFile.close();
+
+            if (stopSignal == 1) { 
+                std::cout << "Stop signal received, exiting loop." << std::endl;
+                break; 
+            }
+        } 
+        else 
+        {
+            std::cerr << "Error: Cannot open stop.dat for reading!" << std::endl;
+        }
+
+        // Get the time step for each cell
+        getDtau();
+
+        // Get the mass stiffness diagnal
+        getMassDiagnal();
+
+        // Store the conservative variables from the last step 
+        initRK();
+
+        // Runge-Kutta iteration
+        label iRK = 0;
+        while ( iRK < nRK )
+        {
+            // Get the slopes based on MUSCL limiter
+            getSlope();
+
+            // Get the fluxes of each face
+            evolve();
+
+            // Get the global RHS vector
+            assembleGlobalVecRHS(iRK);
+
+            // Get the local flux Jacobian
+            assembleLocalFluxJacobian();
+
+            // Get the flux Joule Jacobian
+            getFluxJouleJacobian();
+
+            // Get the chemical source term Jacobian
+            getCsJacobian();
+
+            // Get the global Jacobian 
+            assembleGlobalJacobian();
+
+
+
+            iRK++;
+        }
+        auto stepEnd = std::chrono::high_resolution_clock::now();
+        std::chrono::duration<scalar> wallTime = stepEnd - stepStart;
+
+        step++;
+
+        // Setup the boundary conditions
+        setBoundaryConditions(harmTime);
+
+        infoRes();
+
+        writeResidual(wallTime.count());
+
+        checkNegativeStates();
+
+        writeIterSolution();
+
+
+        if(analysisMode == AnalysisMode::HB)
+        {
+            writeFourierCoefficientsHB();
+            writeUnsteadyFlowFieldHB();    
+        }
+
+    }
 }
 
 void FVM::Solver::iterateHBPCI1()

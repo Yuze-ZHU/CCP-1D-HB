@@ -31,6 +31,9 @@ using scalar = double;
 using tensor1 = std::valarray<scalar>;
 using tensor2 = std::valarray<std::valarray<scalar>>;
 using std::vector;
+using RowMajorMatrixXd = Eigen::Matrix<scalar, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>;
+using DiagnalMatrixXd4 = Eigen::Matrix<scalar, 4, 4, Eigen::RowMajor>;
+using DiagnalMatrixXd3 = Eigen::Matrix<scalar, 3, 3, Eigen::RowMajor>;
 
 
 namespace Tools
@@ -102,32 +105,6 @@ namespace FVM
 
     };
 
-    class PhiDecSolver
-    {
-
-    public:
-        // Member Variables
-
-        //- 
-        Eigen::MatrixXd M;
-
-        //- 
-        Eigen::LLT<Eigen::MatrixXd> solver;
-
-        //- Constructor
-        explicit PhiDecSolver();
-
-        // Member Functions
-
-        //- Create LU Matrixes
-        void createLU();
-
-        //- 
-        void solverApply(Eigen::VectorXd &F,Eigen::VectorXd &Phi_);
-        
-        // Destructor
-        ~PhiDecSolver();
-    };
 
     class Cell
     {
@@ -178,10 +155,10 @@ namespace FVM
         Eigen::VectorXd sNe, sNi, sEe, sPhi;
 
         //- Stiffness matrix
-        Eigen::MatrixXd massDiagnal;
+        RowMajorMatrixXd massDiagnal;
 
         //- Chemical source Jacobian
-        std::vector<Eigen::MatrixXd> jacobianCs;
+        std::vector<RowMajorMatrixXd> jacobianCs;
         
         // Constructor
         //- Construct by id
@@ -234,10 +211,10 @@ namespace FVM
         Eigen::VectorXd fluxPhi;
 
         //- Flux Jacobian
-        std::vector<Eigen::MatrixXd> jacobianFluxL;
-        std::vector<Eigen::MatrixXd> jacobianFluxR;
-        std::vector<Eigen::MatrixXd> jacobianFluxLNeg;
-        std::vector<Eigen::MatrixXd> jacobianFluxRNeg;
+        std::vector<RowMajorMatrixXd> jacobianFluxL;
+        std::vector<RowMajorMatrixXd> jacobianFluxR;
+        std::vector<RowMajorMatrixXd> jacobianFluxLNeg;
+        std::vector<RowMajorMatrixXd> jacobianFluxRNeg;
 
         // Constructor
         //- Construct by cells
@@ -311,13 +288,13 @@ namespace FVM
 
         // Matrices  and vectors related to Harmonic Balance
         //- Time spectral source matrix, E
-        Eigen::MatrixXd harmMat;
+        RowMajorMatrixXd harmMat;
 
         //- DFT matrix, D
-        Eigen::MatrixXd dftMat;
+        RowMajorMatrixXd dftMat;
 
         //- Inverse of DFT matrix, D^-1
-        Eigen::MatrixXd dftMatInv;
+        RowMajorMatrixXd dftMatInv;
  
         //- Time instants
         Eigen::VectorXd harmTime;
@@ -326,12 +303,12 @@ namespace FVM
         Eigen::VectorXd angFreq;
 
         //- Harmonic balance source Jacobian
-        Eigen::MatrixXd jacobianHBs;
+        RowMajorMatrixXd jacobianHBs;
 
         //- FluxJoule Jacobian(Joule source term)
-        std::vector<std::vector<Eigen::MatrixXd>> jacobianFluxJouleLCell;
-        std::vector<std::vector<Eigen::MatrixXd>> jacobianFluxJouleCCell;
-        std::vector<std::vector<Eigen::MatrixXd>> jacobianFluxJouleRCell;        
+        std::vector<std::vector<RowMajorMatrixXd>> jacobianFluxJouleLCell;
+        std::vector<std::vector<RowMajorMatrixXd>> jacobianFluxJouleCCell;
+        std::vector<std::vector<RowMajorMatrixXd>> jacobianFluxJouleRCell;        
 
         // Module for solving Poisson's equation using the FVM framework: A·x = b
         //- Coefficient matrix A for the discretized Poisson's equation
@@ -361,6 +338,9 @@ namespace FVM
         ~Solver();
 
         // Member function
+        //- Add values to a block matrix
+        inline void addValuesBlock(Mat &mat, PetscInt row, PetscInt col,
+                            const Eigen::Matrix<double, 4, 4, Eigen::RowMajor> &block);
 
         //- Initialize the flow region
         void initlize();
@@ -376,7 +356,7 @@ namespace FVM
 
         //- Calculate time step
         void getDt(bool& isWritingStepCal, bool& isResWritingStepCal, bool& isPrintStepCal);
-
+        void getDtau();
         //- Initialize Runge-Kutta
         void initRK();
 
@@ -401,7 +381,6 @@ namespace FVM
     
         //- Get chemical source Jacobian
         void getCsJacobian();
-        void getCsJacobianNeg();
 
         //- Get mass stiffness matrix
         void getMassDiagnal();
@@ -411,6 +390,9 @@ namespace FVM
 
         //- Assembel local flux Jacobian matrix
         void assembleLocalFluxJacobian();
+
+        //- Assemble global Jacobian matrix
+        void assembleGlobalJacobian();
 
         //- Update Phi for electric potential
         void setupPoisson();

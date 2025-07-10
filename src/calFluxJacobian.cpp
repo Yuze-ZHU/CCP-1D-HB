@@ -225,26 +225,16 @@ void FVM::Solver::getCsJacobian()
         for (label iT = 0; iT < numT; ++iT)
         {
             cells[i].jacobianCs[iT].setZero();
-            cells[i].jacobianCs[iT](0, 0) = cells[i].kl(iT) * N * cells[i].vol;
-            cells[i].jacobianCs[iT](1, 0) = cells[i].kl(iT) * N * cells[i].vol;
-            cells[i].jacobianCs[iT](2, 0) = - cells[i].kl(iT) * Hl * N * cells[i].vol;
-            cells[i].jacobianCs[iT](3, 0) = e * cells[i].vol;
-            cells[i].jacobianCs[iT](3, 1) = - e * cells[i].vol;
+            cells[i].jacobianCs[iT](0, 0) = - cells[i].kl(iT) * N * cells[i].vol;
+            cells[i].jacobianCs[iT](1, 0) = - cells[i].kl(iT) * N * cells[i].vol;
+            cells[i].jacobianCs[iT](2, 0) = cells[i].kl(iT) * Hl * N * cells[i].vol;
+            cells[i].jacobianCs[iT](3, 0) = - e * cells[i].vol;
+            cells[i].jacobianCs[iT](3, 1) = e * cells[i].vol;
         }
+        
     }
 }
 
-void FVM::Solver::getCsJacobianNeg()
-{
-    using namespace Const;
-    for (label i = 0; i < numCells; ++i)
-    {
-        for (label iT = 0; iT < numT; ++iT)
-        {
-            cells[i].jacobianCs[iT] = - cells[i].jacobianCs[iT];
-        }
-    }
-}
 
 void FVM::Face::getFluxJacobianNeg()
 {
