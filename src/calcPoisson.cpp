@@ -148,12 +148,9 @@ void FVM::Solver::updatePhiFVM()
             else
             {
                 cells[i].Ec(iT) = -(cells[i + 1].Phi(iT) - cells[i - 1].Phi(iT))
-                                / (faces[i].dist + faces[i +1].dist);
+                                / (faces[i].dist + faces[i + 1].dist);
             }
         }
-        // Ghost cells at the boundaries
-        cells[numCells].Ec(iT)     = cells[numCells - 1].Ec(iT);
-        cells[numCells + 1].Ec(iT) = cells[0].Ec(iT);
     }
     VecRestoreArray(phiVec, &phiArr);         
     KSPDestroy(&phiSolver);   

@@ -355,7 +355,7 @@ FVM::Face::Face(const Cell &Lcell, const Cell &Rcell)
     {
         cellIDL = -1;
     }
-    else if (faceID = Const::numCells)
+    else if (faceID == Const::numCells)
     {
         cellIDR = -1;
     }
@@ -1117,6 +1117,87 @@ void FVM::Solver::updateFluidExplicit(const label iRK)
 }
 
 
+void FVM::Solver::updateFluidHBFCI()
+{
+    using namespace Const;
+    using namespace Tools;
+
+    // Create solver
+    KSP HBFCISolver;
+    // Create pre-conditioner
+    PC HBFCIPC;
+    KSPCreate(PETSC_COMM_SELF, &HBFCISolver); 
+
+    // Set coefficient matrix and pre-conditioner matrix                      
+    KSPSetOperators(HBFCISolver, jacobianAllGlobal, jacobianAllGlobal); 
+    
+    // ---------- LU decomposition ------------
+    // KSPSetType(HBFCISolver, KSPPREONLY);
+    // KSPGetPC(HBFCISolver, &HBFCIPC);
+    // PCSetType(HBFCIPC, PCLU);
+
+    // ---------------GMRES -------------------
+    KSPSetType(HBFCISolver, KSPGMRES);                                 
+    KSPGetPC(HBFCISolver, &HBFCIPC);
+    PCSetType(HBFCIPC, PCHYPRE);
+    PCHYPRESetType(HBFCIPC,"boomeramg");   
+    KSPSetTolerances(HBFCISolver,
+                 1e-8,   // rtol
+                 1e-10,   // abstol
+                 PETSC_DEFAULT,     // dtol
+                 500);   // max_iter
+
+    KSPSetFromOptions(HBFCISolver);                                
+    // Solving: x = A⁻¹·b
+    KSPSolve(HBFCISolver, rhsGlobal, incrementGlobal); 
+
+    // Update the solution
+    for (label iT = 0; iT < numT; ++iT)
+    {
+        for (label i = 0; i < numCells; ++i)
+        {   PetscInt indices[4];
+            indices[0] = 4 * iT * numCells + 4 * i + 0; 
+            indices[1] = 4 * iT * numCells + 4 * i + 1;
+            indices[2] = 4 * iT * numCells + 4 * i + 2;
+            indices[3] = 4 * iT * numCells + 4 * i + 3;
+
+            PetscScalar incrementW[4];
+
+            VecGetValues(incrementGlobal, 4, indices, incrementW);
+
+            cells[i].Ne(iT)  = cells[i].NeOld(iT)  + eps * incrementW[0];
+            cells[i].Ni(iT)  = cells[i].NiOld(iT)  + eps * incrementW[1];
+            cells[i].Ee(iT)  = cells[i].EeOld(iT)  + eps * incrementW[2];
+            cells[i].Phi(iT) = cells[i].PhiOld(iT) + eps * incrementW[3];
+
+            // Update the electron temperature
+            cells[i].Te(iT)  = EeToTeND(cells[i].Ne(iT), cells[i].Ee(iT));
+        }
+
+        // Update the electric field
+        const auto &faceLBC = faces[0];
+        const auto &faceRBC = faces[numCells];
+        for (label i = 0; i < numCells; ++i)
+        {
+            if (i == 0)
+            {
+                cells[i].Ec(iT) = - (cells[i].Phi(iT) - faceLBC.PhiL(iT)) / faceLBC.dist;
+            }
+            else if (i == numCells - 1)
+            {
+                cells[i].Ec(iT) = - (faceRBC.PhiR(iT) - cells[i].Phi(iT)) / faceRBC.dist;
+            }
+            else
+            {
+                cells[i].Ec(iT) = - (cells[i + 1].Phi(iT) - cells[i - 1].Phi(iT))
+                                / (faces[i].dist + faces[i + 1].dist);
+            }
+        }
+    }
+    KSPDestroy(&HBFCISolver);  
+}
+
+
 void FVM::Solver::setBoundaryConditions(const Eigen::VectorXd &harmTime)
 {
     using namespace Const;
@@ -1137,12 +1218,15 @@ void FVM::Solver::setBoundaryConditions(const Eigen::VectorXd &harmTime)
         {
             cellLBC->Phi(iT) = PhiRF * std::sin(2.0 * pi * fRF * harmTime(iT) + phase); 
         }
+        cellLBC->Ec(iT)  = cells[0].Ec(iT);
         
+
         cellRBC->Ne(iT)  = cells[numCells - 1].Ne(iT);
         cellRBC->Ni(iT)  = cells[numCells - 1].Ni(iT);
         cellRBC->Ee(iT)  = cells[numCells - 1].Ee(iT);
         cellRBC->Te(iT)  = cells[numCells - 1].Te(iT);
         cellRBC->Phi(iT) = 0.0;
+        cellRBC->Ec(iT)  = cells[numCells - 1].Ec(iT);
     }
 }
 
@@ -1979,41 +2063,42 @@ void FVM::Solver::iterateHBFCI()
             std::cerr << "Error: Cannot open stop.dat for reading!" << std::endl;
         }
 
-        // Get the time step for each cell
+        //- Get the time step for each cell
         getDtau();
 
-        // Get the mass stiffness diagnal
+        //- Get the mass stiffness diagnal
         getMassDiagnal();
 
-        // Store the conservative variables from the last step 
+        //- Store the conservative variables from the last step 
         initRK();
 
-        // Runge-Kutta iteration
+        //- Runge-Kutta iteration
         label iRK = 0;
         while ( iRK < nRK )
         {
-            // Get the slopes based on MUSCL limiter
+            //- Get the slopes based on MUSCL limiter
             getSlope();
 
-            // Get the fluxes of each face
+            //- Get the fluxes of each face
             evolve();
 
-            // Get the global RHS vector
+            //- Get the global RHS vector
             assembleGlobalVecRHS(iRK);
 
-            // Get the local flux Jacobian
+            //- Get the local flux Jacobian
             assembleLocalFluxJacobian();
 
-            // Get the flux Joule Jacobian
+            //- Get the flux Joule Jacobian
             getFluxJouleJacobian();
 
-            // Get the chemical source term Jacobian
+            //- Get the chemical source term Jacobian
             getCsJacobian();
 
-            // Get the global Jacobian 
+            //- Get the global Jacobian 
             assembleGlobalJacobian();
 
-
+            //- Solve the linear system and update the flow variables
+            updateFluidHBFCI();
 
             iRK++;
         }
@@ -2022,24 +2107,29 @@ void FVM::Solver::iterateHBFCI()
 
         step++;
 
-        // Setup the boundary conditions
+        //- Setup the boundary conditions
         setBoundaryConditions(harmTime);
 
+        //- Calculate the residuals and print them
         infoRes();
 
+        //- Write the residuals to the file
         writeResidual(wallTime.count());
 
+        //- Check if negative states in the flow variables exist
         checkNegativeStates();
 
+        //- Write the Quasi-steady solution to the output file
         writeIterSolution();
-
 
         if(analysisMode == AnalysisMode::HB)
         {
+            //- Write the Fourier coefficients to the output file
             writeFourierCoefficientsHB();
+
+            //- Write the reconstructed unsteady flow field to the output file
             writeUnsteadyFlowFieldHB();    
         }
-
     }
 }
 
@@ -2120,9 +2210,12 @@ int main(int argc, char *argv[])
     ccp.initHarmonicMat();
 
     // Setting up the poisson coefficient matrix
-    std::cout << "Setting up thr poisson coefficient matrix: A" << std::endl;
-    ccp.setupPoisson();
-
+    if(Const::implicitScheme == ImplicitScheme::NO ||
+       Const::implicitScheme == ImplicitScheme::PCI1)
+    {
+        std::cout << "Setting up thr poisson coefficient matrix: A" << std::endl;
+        ccp.setupPoisson();
+    }
     // Setup the boundary conditions
     std::cout << "Seting up the boundary condition" << std::endl;
     ccp.setBoundaryConditions(ccp.harmTime);

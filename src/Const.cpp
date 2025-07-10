@@ -90,7 +90,7 @@ namespace Const
     // - CFL number
     scalar CFL;
     
-    // - relaxation factor for implicit scheme
+    //- Relaxation factor for updating solution implicitly
     scalar eps;
     
     // - Number of loops for Block Jacobi iteration
@@ -398,6 +398,7 @@ namespace Const
             std::string schemeStr = config["implicitScheme"];
             trim(schemeStr);
             if (schemeStr == "NO") implicitScheme = ImplicitScheme::NO;
+            else if (schemeStr == "FCI") implicitScheme = ImplicitScheme::FCI;
             else if (schemeStr == "PCI1") implicitScheme = ImplicitScheme::PCI1;
             else throw std::runtime_error("Unknown implicitScheme: " + schemeStr);
         }

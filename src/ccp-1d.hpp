@@ -373,8 +373,7 @@ namespace FVM
 
         //- Update fluid field
         void updateFluidExplicit(const label iRK);
-        void updateFluidImplicitEK(const label iRK);
-        void updateFluidImplicitE(const label iRK);
+        void updateFluidHBFCI();
 
         //- Get the Joule flux source Jacobian
         void getFluxJouleJacobian();

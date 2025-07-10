@@ -87,7 +87,7 @@ namespace Const
     //- CFL number
     extern scalar CFL;
     
-    //- relaxation factor for implicit scheme
+    //- Relaxation factor for updating solution implicitly
     extern scalar eps;
     
     //- Number of loops for Block Jacobi iteration
