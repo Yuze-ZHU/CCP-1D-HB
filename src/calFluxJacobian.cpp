@@ -8,13 +8,14 @@
 void FVM::Face::getFluxJacobianFCI()
 {
     using namespace Const;
-    for (label iT = 0; iT < numT; ++numT)
+    for (label iT = 0; iT < numT; ++iT)
     {
         jacobianFluxL[iT].setZero();
         jacobianFluxR[iT].setZero();
 
         const scalar dPhi   = getDiff(cellL.Phi(iT), cellR.Phi(iT));
         const scalar dNe    = getDiff(cellL.Ne(iT),  cellR.Ne(iT));
+        
         if(PhiR(iT) > PhiL(iT))
         {
             jacobianFluxL[iT](0, 0) = De / dist + muE * dPhi;
@@ -64,16 +65,16 @@ void FVM::Face::getFluxJacobianFCI()
             jacobianFluxR[iT](1, 3) = - muI * cellL.Ni(iT) / dist;
 
             jacobianFluxL[iT](2, 0) = 5.0 / 3.0 * De / dist * (cellR.Ee(iT) / cellR.Ne(iT) 
-                                - cellL.Ee(iT) * cellR.Ne(iT) / std::pow(cellL.Ne(iT), 2.0));
+                                    - cellL.Ee(iT) * cellR.Ne(iT) / std::pow(cellL.Ne(iT), 2.0));
             jacobianFluxL[iT](2, 0) -= e * De * cellR.Phi(iT) / dist;
 
             jacobianFluxR[iT](2, 0) = 5.0 / 3.0 * De / dist * (cellL.Ee(iT) / cellL.Ne(iT) 
-                                - cellR.Ee(iT) * cellL.Ne(iT) / std::pow(cellR.Ne(iT), 2.0));
+                                    - cellR.Ee(iT) * cellL.Ne(iT) / std::pow(cellR.Ne(iT), 2.0));
             jacobianFluxR[iT](2, 0) -= e * cellR.Phi(iT)  * (-De / dist + muE * dPhi);
 
             jacobianFluxL[iT](2, 2) = 5.0 / 3.0 * De / dist * cellR.Ne(iT) / cellL.Ne(iT);
             jacobianFluxR[iT](2, 2) = - 5.0 / 3.0 * De / dist * (2.0 * cellR.Ne(iT) 
-                                - cellL.Ne(iT)) / cellR.Ne(iT) + 5.0 / 3.0 * muE * dPhi;
+                                    - cellL.Ne(iT)) / cellR.Ne(iT) + 5.0 / 3.0 * muE * dPhi;
 
             jacobianFluxL[iT](2, 3) = -5.0 / 3.0 * muE * cellR.Ee(iT) / dist;
             jacobianFluxL[iT](2, 3) += e * muE * cellR.Phi(iT) * cellR.Ne(iT) / dist;
@@ -261,28 +262,69 @@ void FVM::Solver::getFluxJouleJacobian()
             jacobianFluxJouleCCell[iT][i].setZero();
             jacobianFluxJouleRCell[iT][i].setZero();
 
-            //- Left cell
-            jacobianFluxJouleLCell[iT][i](2, 0)  = - e * cells[i].Phi(iT) * faces[i].jacobianFluxL[iT](0, 0);
-            jacobianFluxJouleLCell[iT][i](2, 1)  = - e * cells[i].Phi(iT) * faces[i].jacobianFluxL[iT](0, 1);
-            jacobianFluxJouleLCell[iT][i](2, 2)  = - e * cells[i].Phi(iT) * faces[i].jacobianFluxL[iT](0, 2);
-            jacobianFluxJouleLCell[iT][i](2, 3)  = - e * cells[i].Phi(iT) * faces[i].jacobianFluxL[iT](0, 3);
-
-            //- Centeral cell
-            jacobianFluxJouleCCell[iT][i](2, 0)  = e * cells[i].Phi(iT) * (faces[i + 1].jacobianFluxL[iT](0, 0) 
-                                                 - faces[i].jacobianFluxR[iT](0, 0));
-            jacobianFluxJouleCCell[iT][i](2, 1)  = e * cells[i].Phi(iT) * (faces[i + 1].jacobianFluxL[iT](0, 1) 
-                                                 - faces[i].jacobianFluxR[iT](0, 1));
-            jacobianFluxJouleCCell[iT][i](2, 2)  = e * cells[i].Phi(iT) * (faces[i + 1].jacobianFluxL[iT](0, 2) 
-                                                 - faces[i].jacobianFluxR[iT](0, 2));
-            jacobianFluxJouleCCell[iT][i](2, 3)  = e * (faces[i + 1].fluxNe(iT) - faces[i].fluxNe(iT));
-            jacobianFluxJouleCCell[iT][i](2, 3) += e * cells[i].Phi(iT) * (faces[i+1].jacobianFluxL[iT](0, 3) 
-                                                 - faces[i].jacobianFluxR[iT](0, 3));
+            if (i == 0)
+            {
+                //- Centeral cell
+                jacobianFluxJouleCCell[iT][i](2, 0)  = e * cells[i].Phi(iT) * (faces[i + 1].jacobianFluxL[iT](0, 0) 
+                                                     - faces[i].jacobianFluxR[iT](0, 0));
+                jacobianFluxJouleCCell[iT][i](2, 1)  = e * cells[i].Phi(iT) * (faces[i + 1].jacobianFluxL[iT](0, 1) 
+                                                     - faces[i].jacobianFluxR[iT](0, 1));
+                jacobianFluxJouleCCell[iT][i](2, 2)  = e * cells[i].Phi(iT) * (faces[i + 1].jacobianFluxL[iT](0, 2) 
+                                                     - faces[i].jacobianFluxR[iT](0, 2));
+                jacobianFluxJouleCCell[iT][i](2, 3)  = e * (faces[i + 1].fluxNe(iT) - faces[i].fluxNe(iT));
+                jacobianFluxJouleCCell[iT][i](2, 3) += e * cells[i].Phi(iT) * (faces[i+1].jacobianFluxL[iT](0, 3) 
+                                                     - faces[i].jacobianFluxR[iT](0, 3));
             
-            //- Right cell
-            jacobianFluxJouleRCell[iT][i](2, 0)  = e * cells[i].Phi(iT) * faces[i + 1].jacobianFluxR[iT](0,0);
-            jacobianFluxJouleRCell[iT][i](2, 1)  = e * cells[i].Phi(iT) * faces[i + 1].jacobianFluxR[iT](0,1); 
-            jacobianFluxJouleRCell[iT][i](2, 2)  = e * cells[i].Phi(iT) * faces[i + 1].jacobianFluxR[iT](0,2);
-            jacobianFluxJouleRCell[iT][i](2, 3)  = e * cells[i].Phi(iT) * faces[i + 1].jacobianFluxR[iT](0,3);           
+                //- Right cell
+                jacobianFluxJouleRCell[iT][i](2, 0)  = e * cells[i].Phi(iT) * faces[i + 1].jacobianFluxR[iT](0,0);
+                jacobianFluxJouleRCell[iT][i](2, 1)  = e * cells[i].Phi(iT) * faces[i + 1].jacobianFluxR[iT](0,1); 
+                jacobianFluxJouleRCell[iT][i](2, 2)  = e * cells[i].Phi(iT) * faces[i + 1].jacobianFluxR[iT](0,2);
+                jacobianFluxJouleRCell[iT][i](2, 3)  = e * cells[i].Phi(iT) * faces[i + 1].jacobianFluxR[iT](0,3);  
+            }
+            else if (i == numCells - 1)
+            {
+                //- Left cell
+                jacobianFluxJouleLCell[iT][i](2, 0)  = - e * cells[i].Phi(iT) * faces[i].jacobianFluxL[iT](0, 0);
+                jacobianFluxJouleLCell[iT][i](2, 1)  = - e * cells[i].Phi(iT) * faces[i].jacobianFluxL[iT](0, 1);
+                jacobianFluxJouleLCell[iT][i](2, 2)  = - e * cells[i].Phi(iT) * faces[i].jacobianFluxL[iT](0, 2);
+                jacobianFluxJouleLCell[iT][i](2, 3)  = - e * cells[i].Phi(iT) * faces[i].jacobianFluxL[iT](0, 3);
+
+                //- Centeral cell
+                jacobianFluxJouleCCell[iT][i](2, 0)  = e * cells[i].Phi(iT) * (faces[i + 1].jacobianFluxL[iT](0, 0) 
+                                                     - faces[i].jacobianFluxR[iT](0, 0));
+                jacobianFluxJouleCCell[iT][i](2, 1)  = e * cells[i].Phi(iT) * (faces[i + 1].jacobianFluxL[iT](0, 1) 
+                                                     - faces[i].jacobianFluxR[iT](0, 1));
+                jacobianFluxJouleCCell[iT][i](2, 2)  = e * cells[i].Phi(iT) * (faces[i + 1].jacobianFluxL[iT](0, 2) 
+                                                     - faces[i].jacobianFluxR[iT](0, 2));
+                jacobianFluxJouleCCell[iT][i](2, 3)  = e * (faces[i + 1].fluxNe(iT) - faces[i].fluxNe(iT));
+                jacobianFluxJouleCCell[iT][i](2, 3) += e * cells[i].Phi(iT) * (faces[i+1].jacobianFluxL[iT](0, 3) 
+                                                     - faces[i].jacobianFluxR[iT](0, 3));
+            }
+            else
+            {
+                //- Left cell
+                jacobianFluxJouleLCell[iT][i](2, 0)  = - e * cells[i].Phi(iT) * faces[i].jacobianFluxL[iT](0, 0);
+                jacobianFluxJouleLCell[iT][i](2, 1)  = - e * cells[i].Phi(iT) * faces[i].jacobianFluxL[iT](0, 1);
+                jacobianFluxJouleLCell[iT][i](2, 2)  = - e * cells[i].Phi(iT) * faces[i].jacobianFluxL[iT](0, 2);
+                jacobianFluxJouleLCell[iT][i](2, 3)  = - e * cells[i].Phi(iT) * faces[i].jacobianFluxL[iT](0, 3);
+
+                //- Centeral cell
+                jacobianFluxJouleCCell[iT][i](2, 0)  = e * cells[i].Phi(iT) * (faces[i + 1].jacobianFluxL[iT](0, 0) 
+                                                     - faces[i].jacobianFluxR[iT](0, 0));
+                jacobianFluxJouleCCell[iT][i](2, 1)  = e * cells[i].Phi(iT) * (faces[i + 1].jacobianFluxL[iT](0, 1) 
+                                                     - faces[i].jacobianFluxR[iT](0, 1));
+                jacobianFluxJouleCCell[iT][i](2, 2)  = e * cells[i].Phi(iT) * (faces[i + 1].jacobianFluxL[iT](0, 2) 
+                                                     - faces[i].jacobianFluxR[iT](0, 2));
+                jacobianFluxJouleCCell[iT][i](2, 3)  = e * (faces[i + 1].fluxNe(iT) - faces[i].fluxNe(iT));
+                jacobianFluxJouleCCell[iT][i](2, 3) += e * cells[i].Phi(iT) * (faces[i+1].jacobianFluxL[iT](0, 3) 
+                                                     - faces[i].jacobianFluxR[iT](0, 3));
+            
+                //- Right cell
+                jacobianFluxJouleRCell[iT][i](2, 0)  = e * cells[i].Phi(iT) * faces[i + 1].jacobianFluxR[iT](0,0);
+                jacobianFluxJouleRCell[iT][i](2, 1)  = e * cells[i].Phi(iT) * faces[i + 1].jacobianFluxR[iT](0,1); 
+                jacobianFluxJouleRCell[iT][i](2, 2)  = e * cells[i].Phi(iT) * faces[i + 1].jacobianFluxR[iT](0,2);
+                jacobianFluxJouleRCell[iT][i](2, 3)  = e * cells[i].Phi(iT) * faces[i + 1].jacobianFluxR[iT](0,3);  
+            }         
         }
     }
 }

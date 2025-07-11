@@ -910,19 +910,16 @@ void FVM::Solver::assembleLocalFluxJacobian()
     {
         if (face.faceID == 0)
         {
-           
             face.getFluxJacobianLeftBCFCI();
             face.getFluxJacobianNeg();
         }
         else if (face.faceID == numCells)
         {
-            
             face.getFluxJacobianRightBCFCI();
             face.getFluxJacobianNeg();
         }
         else
         {
-            
             face.getFluxJacobianFCI();
             face.getFluxJacobianNeg();
         }
@@ -2033,10 +2030,11 @@ void initDebugLogs()
 void FVM::Solver::iterateHBFCI()
 {
     using namespace Const;  
-    auto stepStart = std::chrono::high_resolution_clock::now();
+    const auto stepStart = std::chrono::high_resolution_clock::now();// 少用auto
  
     std::ofstream stopFile(outputDir +"/stop.dat", std::ios::trunc);
-    if (!stopFile.is_open()) {
+    if (!stopFile.is_open()) 
+    {
         std::cerr << "Error: Cannot create stop.dat file!" << std::endl;
         return;
     }
@@ -2064,12 +2062,15 @@ void FVM::Solver::iterateHBFCI()
         }
 
         //- Get the time step for each cell
+        std::cout << "Getting time step for each cell..." << std::endl;
         getDtau();
 
-        //- Get the mass stiffness diagnal
+        //- Get the mass stiffness diagnal：vol / dtau
+        std::cout << "Getting mass stiffness diagnal..." << std::endl;
         getMassDiagnal();
 
         //- Store the conservative variables from the last step 
+        std::cout << "Storing conservative variables from the last step..." << std::endl;
         initRK();
 
         //- Runge-Kutta iteration
@@ -2077,27 +2078,35 @@ void FVM::Solver::iterateHBFCI()
         while ( iRK < nRK )
         {
             //- Get the slopes based on MUSCL limiter
+            std::cout << "Getting slopes for Runge-Kutta step " << iRK << "..." << std::endl;
             getSlope();
 
             //- Get the fluxes of each face
+            std::cout << "Evolving fluxes for Runge-Kutta step " << iRK << "..." << std::endl;
             evolve();
 
             //- Get the global RHS vector
+            std::cout << "Assembling global RHS vector for Runge-Kutta step " << iRK << "..." << std::endl;
             assembleGlobalVecRHS(iRK);
 
             //- Get the local flux Jacobian
+            std::cout << "Assembling local flux Jacobian for Runge-Kutta step " << iRK << "..." << std::endl;
             assembleLocalFluxJacobian();
 
             //- Get the flux Joule Jacobian
+            std::cout << "Getting flux Joule Jacobian for Runge-Kutta step " << iRK << "..." << std::endl;
             getFluxJouleJacobian();
 
-            //- Get the chemical source term Jacobian
+            //- Get the chemical source term Jacobian 
+            std::cout << "Getting chemical source term Jacobian for Runge-Kutta step " << iRK << "..." << std::endl;
             getCsJacobian();
 
-            //- Get the global Jacobian 
+            //- Get the global Jacobian
+            std::cout << "Assembling global Jacobian for Runge-Kutta step " << iRK << "..." << std::endl; 
             assembleGlobalJacobian();
 
             //- Solve the linear system and update the flow variables
+            std::cout << "Solving linear system for Runge-Kutta step " << iRK << "..." << std::endl;
             updateFluidHBFCI();
 
             iRK++;
@@ -2108,9 +2117,11 @@ void FVM::Solver::iterateHBFCI()
         step++;
 
         //- Setup the boundary conditions
+        std::cout << "Setting up boundary conditions..." << std::endl;
         setBoundaryConditions(harmTime);
 
         //- Calculate the residuals and print them
+        std::cout << "Calculating and printing residuals..." << std::endl;
         infoRes();
 
         //- Write the residuals to the file
@@ -2203,7 +2214,7 @@ int main(int argc, char *argv[])
 
     // Initializing the varaibles from default values or from the file
     std::cout << "Initializing the variables" << std::endl;
-    ccp.initlize(); 
+    ccp.initlize(); ///////!!!!
 
     // Initializing the harmonic matrix
     std::cout << "Initializing the matrices and vectors related to harmonic balance method" << std::endl;
@@ -2218,7 +2229,7 @@ int main(int argc, char *argv[])
     }
     // Setup the boundary conditions
     std::cout << "Seting up the boundary condition" << std::endl;
-    ccp.setBoundaryConditions(ccp.harmTime);
+    ccp.setBoundaryConditions(ccp.harmTime);///////!!!!
 
 
     if(analysisMode == AnalysisMode::HB)

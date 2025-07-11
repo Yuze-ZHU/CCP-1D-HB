@@ -817,21 +817,21 @@ namespace Const
         Phi0   /= phiRef;
 
         std::cout << "======= Dimensionless variables are as below =======" << std::endl;
-        std::cout << "e: " << e << std::endl;
-        std::cout << "eps0: " << eps0 << std::endl;
-        std::cout << "N: " << N << std::endl;
-        std::cout << "Hl: " << Hl << std::endl;
-        std::cout << "De: " << De << std::endl;
-        std::cout << "Di: " << Di << std::endl;
-        std::cout << "muE: " << muE << std::endl;
-        std::cout << "muI: " << muI << std::endl;
-        std::cout << "PhiRF: " << PhiRF << std::endl;
-        std::cout << "fRF: " << fRF << std::endl;
-        std::cout << "period: " << period << std::endl;
-        std::cout << "Ni0: " << Ni0 << std::endl;
-        std::cout << "Ne0: " << Ne0 << std::endl;
-        std::cout << "Te0: " << Te0 << std::endl;
-        std::cout << "Phi0: " << Phi0 << std::endl;
+        PRINT_VAR(e)
+        PRINT_VAR(eps0)
+        PRINT_VAR(N)
+        PRINT_VAR(Hl)
+        PRINT_VAR(De)
+        PRINT_VAR(Di)
+        PRINT_VAR(muE)
+        PRINT_VAR(muI)
+        PRINT_VAR(PhiRF)
+        PRINT_VAR(fRF)
+        PRINT_VAR(period)
+        PRINT_VAR(Ni0)
+        PRINT_VAR(Ne0)
+        PRINT_VAR(Te0)
+        PRINT_VAR(Phi0)
         std::cout << "=====================================================" << std::endl;
         std::cout << "Nondimensionlization successfully done!" << std::endl;
     }
