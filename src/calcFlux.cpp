@@ -16,10 +16,10 @@ void FVM::Face::getFlux()
         const scalar dPhi   = getDiff(cellL.Phi(iT), cellR.Phi(iT));
 
         // Get upwinded variables based on direction of electric potential 
-        const scalar NeC    = getUpwind(cellL.Ne(iT), cellR.Ne(iT), iT);
-        const scalar NiC    = getDownwind(cellL.Ni(iT), cellR.Ni(iT), iT);
-        const scalar TeC    = getUpwind(cellL.Te(iT), cellR.Te(iT), iT);  
-        const scalar PhiC   = getUpwind(cellL.Phi(iT), cellR.Phi(iT), iT);
+        const scalar NeC    = getUpwind(NeL(iT), NeR(iT), iT);
+        const scalar NiC    = getDownwind(NiL(iT), NiR(iT), iT);
+        const scalar TeC    = getUpwind(TeL(iT), TeR(iT), iT);  
+        const scalar PhiC   = getUpwind(PhiL(iT), PhiR(iT), iT);
 
         // Electric field intensity at the face
         Ef(iT)              = - dPhi;

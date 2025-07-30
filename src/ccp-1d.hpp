@@ -343,7 +343,7 @@ namespace FVM
                             const Eigen::Matrix<double, 4, 4, Eigen::RowMajor> &block);
 
         //- Initialize the flow region
-        void initlize();
+        void initlizeFluid();
 
         //- Initialize the Harmonic Matrix
         void initHarmonicMat();
@@ -398,7 +398,7 @@ namespace FVM
         void updatePhiFVM();
 
         //- Boundary condition setup
-        void setBoundaryConditions(const Eigen::VectorXd &harmTime);
+        void setBoundaryConditions();
 
         //- Sumation for Average
         void sumForAve();
@@ -408,12 +408,16 @@ namespace FVM
         //- Check
         void checkNegativeStates();
 
+        //- Load init file
+        void loadInitFile(const std::string &initFile);
+
         //- Write
         void initializeOutputFiles();
         void writeCellVolumePlot(const std::string& filename);
         void writeFourierCoefficientsHB();
         void writeUnsteadyFlowFieldHB();
         void writeIterSolution();
+        void writeFinalSolution();
         void writeResidual(scalar wallTime);
         void writeAverageNeNiTeTs(scalar wallTime);
         void writeFinalAverage();

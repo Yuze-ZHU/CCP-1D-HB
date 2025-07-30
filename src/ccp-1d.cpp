@@ -410,47 +410,47 @@ void FVM::Face::interpolate()
     {
         if(faceID == 0)
         {
-            NeR(iT)  = cellR.Ne(iT)  - 0.5 * distR * cellR.sNe(iT);
-            NiR(iT)  = cellR.Ni(iT)  - 0.5 * distR * cellR.sNi(iT);
-            EeR(iT)  = cellR.Ee(iT)  - 0.5 * distR * cellR.sEe(iT);
-            PhiR(iT) = cellR.Phi(iT) - 0.5 * distR * cellR.sPhi(iT);
+            NeR(iT)  = cellR.Ne(iT)  - distR * cellR.sNe(iT);
+            NiR(iT)  = cellR.Ni(iT)  - distR * cellR.sNi(iT);
+            EeR(iT)  = cellR.Ee(iT)  - distR * cellR.sEe(iT);
+            PhiR(iT) = cellR.Phi(iT) - distR * cellR.sPhi(iT);
             TeR(iT)  = EeToTeND(NeR(iT), EeR(iT));
 
             // For the boundary cells, distL and slopes are zero
-            NeL(iT)  = cellL.Ne(iT)  + 0.5 * distL * cellL.sNe(iT);
-            NiL(iT)  = cellL.Ni(iT)  + 0.5 * distL * cellL.sNi(iT);
-            EeL(iT)  = cellL.Ee(iT)  + 0.5 * distL * cellL.sEe(iT);
-            PhiL(iT) = cellL.Phi(iT) + 0.5 * distL * cellL.sPhi(iT);
+            NeL(iT)  = cellL.Ne(iT)  + distL * cellL.sNe(iT);
+            NiL(iT)  = cellL.Ni(iT)  + distL * cellL.sNi(iT);
+            EeL(iT)  = cellL.Ee(iT)  + distL * cellL.sEe(iT);
+            PhiL(iT) = cellL.Phi(iT) + distL * cellL.sPhi(iT);
             // Zero gradient for electron energy at the boundary
             TeL(iT)  = TeR(iT);
         }
         else if(faceID == numCells)
         {
-            NeL(iT)  = cellL.Ne(iT)  + 0.5 * distL * cellL.sNe(iT);
-            NiL(iT)  = cellL.Ni(iT)  + 0.5 * distL * cellL.sNi(iT);
-            EeL(iT)  = cellL.Ee(iT)  + 0.5 * distL * cellL.sEe(iT);
-            PhiL(iT) = cellL.Phi(iT) + 0.5 * distL * cellL.sPhi(iT);
+            NeL(iT)  = cellL.Ne(iT)  + distL * cellL.sNe(iT);
+            NiL(iT)  = cellL.Ni(iT)  + distL * cellL.sNi(iT);
+            EeL(iT)  = cellL.Ee(iT)  + distL * cellL.sEe(iT);
+            PhiL(iT) = cellL.Phi(iT) + distL * cellL.sPhi(iT);
             TeL(iT)  = EeToTeND(NeL(iT), EeL(iT));
             // For the boundary cells, distR and slopes are zero
-            NeR(iT)  = cellR.Ne(iT)  - 0.5 * distR * cellR.sNe(iT);
-            NiR(iT)  = cellR.Ni(iT)  - 0.5 * distR * cellR.sNi(iT);
-            EeR(iT)  = cellR.Ee(iT)  - 0.5 * distR * cellR.sEe(iT);
-            PhiR(iT) = cellR.Phi(iT) - 0.5 * distR * cellR.sPhi(iT);
+            NeR(iT)  = cellR.Ne(iT)  - distR * cellR.sNe(iT);
+            NiR(iT)  = cellR.Ni(iT)  - distR * cellR.sNi(iT);
+            EeR(iT)  = cellR.Ee(iT)  - distR * cellR.sEe(iT);
+            PhiR(iT) = cellR.Phi(iT) - distR * cellR.sPhi(iT);
             // Zero gradient for electron energy at the boundary
             TeR(iT)  = TeL(iT);
         }
         else
         {
-            NeL(iT)  = cellL.Ne(iT)  + 0.5 * distL * cellL.sNe(iT);
-            NiL(iT)  = cellL.Ni(iT)  + 0.5 * distL * cellL.sNi(iT);
-            EeL(iT)  = cellL.Ee(iT)  + 0.5 * distL * cellL.sEe(iT);
-            PhiL(iT) = cellL.Phi(iT) + 0.5 * distL * cellL.sPhi(iT);
+            NeL(iT)  = cellL.Ne(iT)  + distL * cellL.sNe(iT);
+            NiL(iT)  = cellL.Ni(iT)  + distL * cellL.sNi(iT);
+            EeL(iT)  = cellL.Ee(iT)  + distL * cellL.sEe(iT);
+            PhiL(iT) = cellL.Phi(iT) + distL * cellL.sPhi(iT);
             TeL(iT)  = EeToTeND(NeL(iT), EeL(iT));
 
-            NeR(iT)  = cellR.Ne(iT)  - 0.5 * distR * cellR.sNe(iT);
-            NiR(iT)  = cellR.Ni(iT)  - 0.5 * distR * cellR.sNi(iT);
-            EeR(iT)  = cellR.Ee(iT)  - 0.5 * distR * cellR.sEe(iT);
-            PhiR(iT) = cellR.Phi(iT) - 0.5 * distR * cellR.sPhi(iT);
+            NeR(iT)  = cellR.Ne(iT)  - distR * cellR.sNe(iT);
+            NiR(iT)  = cellR.Ni(iT)  - distR * cellR.sNi(iT);
+            EeR(iT)  = cellR.Ee(iT)  - distR * cellR.sEe(iT);
+            PhiR(iT) = cellR.Phi(iT) - distR * cellR.sPhi(iT);
             TeR(iT)  = EeToTeND(NeR(iT), EeR(iT));
         }
     }
@@ -612,13 +612,13 @@ inline void FVM::Solver::addValuesBlock(Mat &mat, PetscInt row, PetscInt col,
 }
 
 
-void FVM::Solver::initlize()
+void FVM::Solver::initlizeFluid()
 {
     using namespace Const;
 
-    if (initOption != InitOption::SCRATCH) {
-        // std::cout << "Read quasi-steady solution from file." << std::endl;
-        // readQuasiSteadySolution(initFile);
+    if (initOption == InitOption::RESTART ) 
+    {
+        loadInitFile(initFile);
     }
 
 }
@@ -822,6 +822,7 @@ void FVM::Solver::getDtau()
     {
         scalar dtminLocal   = 1e150;
         const scalar dtDiff = 0.25 * cells[i].vol * cells[i].vol / De;
+        // std::cout << "dtDiff" << dtDiff << std::endl;
         for(label nT = 0; nT < numT; ++nT)
         {
             const scalar dtConv = cells[i].vol / (muE * abs(cells[i].Ec[nT]) + 1e-120 );
@@ -841,6 +842,7 @@ void FVM::Solver::getDtau()
             cells[i].dt = dtminGlobal;
         }
     }
+
 }
 
 void FVM::Solver::getMassDiagnal()
@@ -862,13 +864,15 @@ void FVM::Solver::assembleGlobalVecRHS(const label iRK)
     VecSet(rhsGlobal, 0.0);
     scalar TeV;
 
-    for (label iT = 0; iT < numT; ++iT)
-    { 
-        for (label i = 0; i < numCells; ++i)
-        {
-            PetscScalar rhsiTCell[4];
-            PetscInt blockID = iT * numCells + i;
+    for (label i = 0; i < numCells; ++i)
+    {
+        //- Harmonic balance terms
+        cells[i].ResFluxNe = - alpha[iRK] * harmMat * cells[i].Ne * cells[i].vol;
+        cells[i].ResFluxNi = - alpha[iRK] * harmMat * cells[i].Ni * cells[i].vol;
+        cells[i].ResFluxEe = - alpha[iRK] * harmMat * cells[i].Ee * cells[i].vol;
 
+        for (label iT = 0; iT < numT; ++iT)
+        {
             TeV = KToeV(EeToTe(cells[i].Ne(iT) * nRef, cells[i].Ee(iT) * EeRef));
             cells[i].kl(iT) = chemSets.interpolateChem(TeV) / klRef;
 
@@ -877,30 +881,39 @@ void FVM::Solver::assembleGlobalVecRHS(const label iRK)
             cells[i].Ji(iT)          = (faces[i].fluxNi(iT) + faces[i + 1].fluxNi(iT)) / 2.0;
 
             //- Flux terms
-            cells[i].ResFluxNe(iT)   = alpha[iRK]*(faces[i].fluxNe(iT) - faces[i + 1].fluxNe(iT));
-            cells[i].ResFluxNi(iT)   = alpha[iRK]*(faces[i].fluxNi(iT) - faces[i + 1].fluxNi(iT));
-            cells[i].ResFluxEe(iT)   = alpha[iRK]*(faces[i].fluxEe(iT) - faces[i + 1].fluxEe(iT));
-            cells[i].ResFluxEe(iT)  += alpha[iRK]*(faces[i].fluxEeJoule(iT) - faces[i + 1].fluxEeJoule(iT)) 
+            cells[i].ResFluxNe(iT)  += alpha[iRK] * (faces[i].fluxNe(iT) - faces[i + 1].fluxNe(iT));
+            cells[i].ResFluxNi(iT)  += alpha[iRK] * (faces[i].fluxNi(iT) - faces[i + 1].fluxNi(iT));
+            cells[i].ResFluxEe(iT)  += alpha[iRK] * (faces[i].fluxEe(iT) - faces[i + 1].fluxEe(iT));
+            cells[i].ResFluxEe(iT)  += alpha[iRK] * (faces[i].fluxEeJoule(iT) - faces[i + 1].fluxEeJoule(iT)) 
                                      * cells[i].Phi(iT);
             cells[i].ResFluxPhi(iT)  = alpha[iRK] * (faces[i].fluxPhi(iT) - faces[i + 1].fluxPhi(iT));
 
-            //- Source terms
+            //- Chemical Source terms
             cells[i].ResFluxNe(iT)  += alpha[iRK] * cells[i].kl(iT) * N * cells[i].Ne(iT) * cells[i].vol; 
             cells[i].ResFluxNi(iT)  += alpha[iRK] * cells[i].kl(iT) * N * cells[i].Ne(iT) * cells[i].vol;
-            cells[i].ResFluxEe(iT)  -= alpha[iRK] * cells[i].kl(iT) * N * cells[i].Ne(iT) * Hl * cells[i].vol;
-            cells[i].ResFluxPhi(iT) += alpha[iRK] * (cells[i].Ne(iT) - cells[i].Ni(iT))* cells[i].vol * e;
+            cells[i].ResFluxEe(iT)  -= alpha[iRK] * cells[i].kl(iT) * N * cells[i].Ne(iT) * cells[i].vol * Hl;
+            cells[i].ResFluxPhi(iT) += alpha[iRK] * (cells[i].Ne(iT) - cells[i].Ni(iT)) * cells[i].vol * e;
 
-            rhsiTCell[0] = cells[i].ResFluxNe(iT);
-            rhsiTCell[1] = cells[i].ResFluxNi(iT);
-            rhsiTCell[2] = cells[i].ResFluxEe(iT);
-            rhsiTCell[3] = cells[i].ResFluxPhi(iT);
+
+            PetscScalar rhsiTCell[4];
+            PetscInt blockID = iT * numCells + i;
+            rhsiTCell[0]             = cells[i].ResFluxNe(iT);
+            rhsiTCell[1]             = cells[i].ResFluxNi(iT);
+            rhsiTCell[2]             = cells[i].ResFluxEe(iT);
+            rhsiTCell[3]             = cells[i].ResFluxPhi(iT);
 
             VecSetValuesBlocked(rhsGlobal, 1, &blockID, rhsiTCell, INSERT_VALUES);
-
         }
+        
     }
     VecAssemblyBegin(rhsGlobal);
     VecAssemblyEnd(rhsGlobal);
+    // PetscViewer viewer;
+    // PetscViewerASCIIGetStdout(PETSC_COMM_WORLD, &viewer);
+    // PetscViewerPushFormat(viewer, PETSC_VIEWER_ASCII_MATLAB); 
+    // VecView(rhsGlobal, viewer);
+
+
 }
 
 void FVM::Solver::assembleLocalFluxJacobian()
@@ -930,7 +943,11 @@ void FVM::Solver::assembleGlobalJacobian()
 {
     using namespace Const;
     using namespace Tools;
-    DiagnalMatrixXd4 identity4 = DiagnalMatrixXd4::Identity();
+    RowMajorMatrixXd identity4 = RowMajorMatrixXd::Zero(4, 4);
+    identity4(0, 0) = 1.0;
+    identity4(1, 1) = 1.0;
+    identity4(2, 2) = 1.0;
+    RowMajorMatrixXd sumDiag   = RowMajorMatrixXd::Zero(Const::blockSizeS, Const::blockSizeS);
     MatZeroEntries(jacobianAllGlobal);
     for (label iT = 0; iT < numT; ++iT)
     {
@@ -966,7 +983,7 @@ void FVM::Solver::assembleGlobalJacobian()
             PetscInt idL = idC - 1;
 
             // --- 2.1 Mass + chemical source ---
-            auto sumDiag = cells[i].massDiagnal + cells[i].jacobianCs[iT];
+            sumDiag = cells[i].massDiagnal + cells[i].jacobianCs[iT];
             addValuesBlock(jacobianAllGlobal, idC, idC, sumDiag);
 
             // --- 2.2 Joule source contribution ---
@@ -982,13 +999,19 @@ void FVM::Solver::assembleGlobalJacobian()
             {
                 PetscInt row = iT  * numCells + i;
                 PetscInt col = jT  * numCells + i;
-                jacobianHBs  = Eij * identity4;
+                jacobianHBs  = Eij * identity4 * cells[i].vol;
                 addValuesBlock(jacobianAllGlobal, row, col, jacobianHBs);
             }
         }
     }
     MatAssemblyBegin(jacobianAllGlobal, MAT_FINAL_ASSEMBLY);
     MatAssemblyEnd(jacobianAllGlobal, MAT_FINAL_ASSEMBLY);
+    PetscViewer viewer;
+    PetscViewerASCIIOpen(PETSC_COMM_WORLD, "jacobian.m", &viewer);
+    PetscViewerPushFormat(viewer, PETSC_VIEWER_ASCII_MATLAB);  // 加这一行
+    MatView(jacobianAllGlobal, viewer);
+    PetscViewerDestroy(&viewer);
+
 }
 
 
@@ -1026,8 +1049,8 @@ void FVM::Solver::getSlope()
         {
             cellC->sNe(iT)   = slopeLimiter(cellL->Ne(iT), cellC->Ne(iT), cellR->Ne(iT), faces[i].dist, faces[i + 1].dist);
             cellC->sNi(iT)   = slopeLimiter(cellL->Ni(iT), cellC->Ni(iT), cellR->Ni(iT), faces[i].dist, faces[i + 1].dist);
-            cellC->sEe(iT)   = slopeLimiter(cellL->Ee(iT), cellC->Ee(iT), cellR->Ee(iT), faces[i].dist, faces[i+1].dist);
-            cellC->sPhi(iT)  = slopeLimiter(cellL->Phi(iT), cellC->Phi(iT), cellR->Phi(iT), faces[i].dist, faces[i+1].dist);
+            cellC->sEe(iT)   = slopeLimiter(cellL->Ee(iT), cellC->Ee(iT), cellR->Ee(iT), faces[i].dist, faces[i + 1].dist);
+            cellC->sPhi(iT)  = slopeLimiter(cellL->Phi(iT), cellC->Phi(iT), cellR->Phi(iT), faces[i].dist, faces[i + 1].dist);
         }
     }
     // Set the slopes at the boundary cells
@@ -1101,9 +1124,9 @@ void FVM::Solver::updateFluidExplicit(const label iRK)
         cells[i].ResFluxNi -= alpha[iRK] * harmMat * cells[i].Ni * cells[i].dt;
         cells[i].ResFluxEe -= alpha[iRK] * harmMat * cells[i].Ee * cells[i].dt;
         
-        cells[i].Ne        += cells[i].ResFluxNe;
-        cells[i].Ni        += cells[i].ResFluxNi;
-        cells[i].Ee        += cells[i].ResFluxEe;
+        cells[i].Ne        = cells[i].NeOld + cells[i].ResFluxNe;
+        cells[i].Ni        = cells[i].NiOld + cells[i].ResFluxNi;
+        cells[i].Ee        = cells[i].EeOld + cells[i].ResFluxEe;
       
         for (label iT = 0; iT < numT; ++iT)
         {
@@ -1142,7 +1165,7 @@ void FVM::Solver::updateFluidHBFCI()
                  1e-8,   // rtol
                  1e-10,   // abstol
                  PETSC_DEFAULT,     // dtol
-                 500);   // max_iter
+                 1000);   // max_iter
 
     KSPSetFromOptions(HBFCISolver);                                
     // Solving: x = A⁻¹·b
@@ -1195,7 +1218,7 @@ void FVM::Solver::updateFluidHBFCI()
 }
 
 
-void FVM::Solver::setBoundaryConditions(const Eigen::VectorXd &harmTime)
+void FVM::Solver::setBoundaryConditions()
 {
     using namespace Const;
     Cell *cellLBC = &cells[numCells + 1];
@@ -1453,6 +1476,47 @@ void FVM::Solver::writeIterSolution()
 }
 
 
+void FVM::Solver::writeFinalSolution()
+{
+    using namespace Const;
+
+    if (step % writeStep != 0)  return;
+
+    const std::string filename = outputDir + "/finalSolution.dat";
+    std::ofstream outFile(filename, std::ios::out);  
+
+    if (!outFile) {
+        std::cerr << "Cannot open " << filename << '\n';
+        return;
+    }
+
+    // Tecplot header
+    outFile << "TITLE = \"Final Solution\"" << std::endl;
+    outFile << "VARIABLES = \"cellID\", \"x\", \"Ne\", \"Ni\", \"Ee\", \"Te\", \"Phi\"" << std::endl;
+
+
+    for (label iT = 0; iT < Const::numT; iT++)
+    {
+        outFile << "ZONE T=\"Init_nT=" << iT << "\", I=" << numCells << ", F=POINT" << std::endl;
+
+        for (label i = 0; i < numCells; i++)
+        {
+            scalar x = 0.5 * (coords[i + 1].x + coords[i].x);
+
+            outFile << cells[i].cellID << '\t'
+                    << std::setprecision(10)
+                    << x << '\t'
+                    << cells[i].Ne(iT)  << '\t'
+                    << cells[i].Ni(iT)  << '\t'
+                    << cells[i].Ee(iT)  << '\t'
+                    << cells[i].Te(iT)  << '\t'
+                    << cells[i].Phi(iT) << '\n';
+        }
+    }
+    outFile.close();
+}
+
+
 void FVM::Solver::gridMetrics()
 {
     using namespace Const;
@@ -1500,15 +1564,15 @@ void FVM::Solver::checkNegativeStates()
                 cells[i].Ee(iT) < 0.0 || 
                 cells[i].Te(iT) < 0.0)
             {
-                std::cerr << "Error: Negative state detected: "
+                std::cerr << "Negative state detected: "
                           << "cell=" << i 
-                          << ", nT =" << iT
+                          << ", nT=" << iT
                           << ", Ne=" << cells[i].Ne(iT)
                           << ", Ni=" << cells[i].Ni(iT)
                           << ", Ee=" << cells[i].Ee(iT)
-                          << ", Te=" << cells[i].Te(iT) 
-                          << std::endl;
-                std::exit(EXIT_FAILURE);
+                          << ", Te=" << cells[i].Te(iT) << std::endl;
+                // std::abort();  // 或 std::exit(EXIT_FAILURE);
+
             }
         }
     }
@@ -1644,6 +1708,54 @@ void FVM::Solver::writeResidual(scalar wallTime)
     out.close();
 
 }
+
+void FVM::Solver::loadInitFile(const std::string &initFile)
+{
+    using namespace Const;
+    std::ifstream inFile(initFile);
+    if (!inFile) {
+        std::cerr << "Cannot open restart file: " << initFile << '\n';
+        std::exit(EXIT_FAILURE);
+    }
+
+    std::string line;
+    label iT = -1;
+    while (std::getline(inFile, line)) {
+        if (line.empty() || line[0] == 'T' || line[0] == 'V')
+            continue;
+
+        if (line.find("ZONE") != std::string::npos) {
+            ++iT;
+            continue;
+        }
+
+        if (iT >= numT) {
+            std::cerr << "Error: More zones in file than expected numT = " << numT << '\n';
+            std::exit(EXIT_FAILURE);
+        }
+
+        std::istringstream iss(line);
+        label cellID;
+        scalar x, Ne, Ni, Ee, Te, Phi;
+
+        iss >> cellID >> x >> Ne >> Ni >> Ee >> Te >> Phi;
+
+        if (cellID < 0 || cellID >= numCells) {
+            std::cerr << "Invalid cellID = " << cellID << " in init file.\n";
+            std::exit(EXIT_FAILURE);
+        }
+
+        cells[cellID].Ne(iT)  = Ne;
+        cells[cellID].Ni(iT)  = Ni;
+        cells[cellID].Ee(iT)  = Ee;
+        cells[cellID].Te(iT)  = Te;
+        cells[cellID].Phi(iT) = Phi;
+    }
+
+    inFile.close();
+    std::cout << "✅ Restart data successfully loaded from " << initFile << '\n';
+}
+
 
 void FVM::Solver::initializeOutputFiles()
 {
@@ -1992,7 +2104,7 @@ void FVM::Solver::iterateExplicit()
   
 
         // Setup the boundary conditions
-        setBoundaryConditions(harmTime);
+        setBoundaryConditions();
 
         infoRes();
 
@@ -2002,12 +2114,13 @@ void FVM::Solver::iterateExplicit()
 
         writeIterSolution();
 
+        writeFinalSolution();
+
 
         if(analysisMode == AnalysisMode::HB)
         {
             writeFourierCoefficientsHB();
             writeUnsteadyFlowFieldHB();    
-
         }
 
     }
@@ -2062,15 +2175,15 @@ void FVM::Solver::iterateHBFCI()
         }
 
         //- Get the time step for each cell
-        std::cout << "Getting time step for each cell..." << std::endl;
+        // std::cout << "Getting time step for each cell..." << std::endl;
         getDtau();
 
         //- Get the mass stiffness diagnal：vol / dtau
-        std::cout << "Getting mass stiffness diagnal..." << std::endl;
+        // std::cout << "Getting mass stiffness diagnal..." << std::endl;
         getMassDiagnal();
 
         //- Store the conservative variables from the last step 
-        std::cout << "Storing conservative variables from the last step..." << std::endl;
+        // std::cout << "Storing conservative variables from the last step..." << std::endl;
         initRK();
 
         //- Runge-Kutta iteration
@@ -2078,35 +2191,35 @@ void FVM::Solver::iterateHBFCI()
         while ( iRK < nRK )
         {
             //- Get the slopes based on MUSCL limiter
-            std::cout << "Getting slopes for Runge-Kutta step " << iRK << "..." << std::endl;
+            // std::cout << "Getting slopes for Runge-Kutta step " << iRK << "..." << std::endl;
             getSlope();
 
             //- Get the fluxes of each face
-            std::cout << "Evolving fluxes for Runge-Kutta step " << iRK << "..." << std::endl;
+            // std::cout << "Evolving fluxes for Runge-Kutta step " << iRK << "..." << std::endl;
             evolve();
 
             //- Get the global RHS vector
-            std::cout << "Assembling global RHS vector for Runge-Kutta step " << iRK << "..." << std::endl;
+            // std::cout << "Assembling global RHS vector for Runge-Kutta step " << iRK << "..." << std::endl;
             assembleGlobalVecRHS(iRK);
 
             //- Get the local flux Jacobian
-            std::cout << "Assembling local flux Jacobian for Runge-Kutta step " << iRK << "..." << std::endl;
+            // std::cout << "Assembling local flux Jacobian for Runge-Kutta step " << iRK << "..." << std::endl;
             assembleLocalFluxJacobian();
 
             //- Get the flux Joule Jacobian
-            std::cout << "Getting flux Joule Jacobian for Runge-Kutta step " << iRK << "..." << std::endl;
+            // std::cout << "Getting flux Joule Jacobian for Runge-Kutta step " << iRK << "..." << std::endl;
             getFluxJouleJacobian();
 
             //- Get the chemical source term Jacobian 
-            std::cout << "Getting chemical source term Jacobian for Runge-Kutta step " << iRK << "..." << std::endl;
+            // std::cout << "Getting chemical source term Jacobian for Runge-Kutta step " << iRK << "..." << std::endl;
             getCsJacobian();
 
             //- Get the global Jacobian
-            std::cout << "Assembling global Jacobian for Runge-Kutta step " << iRK << "..." << std::endl; 
+            // std::cout << "Assembling global Jacobian for Runge-Kutta step " << iRK << "..." << std::endl; 
             assembleGlobalJacobian();
 
             //- Solve the linear system and update the flow variables
-            std::cout << "Solving linear system for Runge-Kutta step " << iRK << "..." << std::endl;
+            // std::cout << "Solving linear system for Runge-Kutta step " << iRK << "..." << std::endl;
             updateFluidHBFCI();
 
             iRK++;
@@ -2117,18 +2230,26 @@ void FVM::Solver::iterateHBFCI()
         step++;
 
         //- Setup the boundary conditions
-        std::cout << "Setting up boundary conditions..." << std::endl;
-        setBoundaryConditions(harmTime);
+        // std::cout << "Setting up boundary conditions..." << std::endl;
+        setBoundaryConditions();
 
         //- Calculate the residuals and print them
-        std::cout << "Calculating and printing residuals..." << std::endl;
+        // std::cout << "Calculating and printing residuals..." << std::endl;
         infoRes();
 
         //- Write the residuals to the file
         writeResidual(wallTime.count());
 
         //- Check if negative states in the flow variables exist
-        checkNegativeStates();
+        try 
+        {
+            checkNegativeStates();
+        } 
+        catch (const std::exception& e) 
+        {
+            std::cerr << "[Negative State Error] " << e.what() << std::endl;
+            std::exit(EXIT_FAILURE);
+        }
 
         //- Write the Quasi-steady solution to the output file
         writeIterSolution();
@@ -2214,7 +2335,7 @@ int main(int argc, char *argv[])
 
     // Initializing the varaibles from default values or from the file
     std::cout << "Initializing the variables" << std::endl;
-    ccp.initlize(); ///////!!!!
+    ccp.initlizeFluid(); 
 
     // Initializing the harmonic matrix
     std::cout << "Initializing the matrices and vectors related to harmonic balance method" << std::endl;
@@ -2227,12 +2348,13 @@ int main(int argc, char *argv[])
         std::cout << "Setting up thr poisson coefficient matrix: A" << std::endl;
         ccp.setupPoisson();
     }
+
     // Setup the boundary conditions
     std::cout << "Seting up the boundary condition" << std::endl;
-    ccp.setBoundaryConditions(ccp.harmTime);///////!!!!
+    ccp.setBoundaryConditions();
 
 
-    if(analysisMode == AnalysisMode::HB)
+    if(analysisMode == AnalysisMode::HB || analysisMode == AnalysisMode::STEADY)
     {
         if(implicitScheme == ImplicitScheme::PCI1)
         {
@@ -2257,7 +2379,7 @@ int main(int argc, char *argv[])
         ccp.iterateExplicit(); 
     }
     
-    std::cout << "Computation finished!🍽️😄" << std::endl;
+    std::cout << "Computation finished!" << std::endl;
 
     return 0;
 }

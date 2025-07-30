@@ -272,14 +272,14 @@ void FVM::Solver::getFluxJouleJacobian()
                 jacobianFluxJouleCCell[iT][i](2, 2)  = e * cells[i].Phi(iT) * (faces[i + 1].jacobianFluxL[iT](0, 2) 
                                                      - faces[i].jacobianFluxR[iT](0, 2));
                 jacobianFluxJouleCCell[iT][i](2, 3)  = e * (faces[i + 1].fluxNe(iT) - faces[i].fluxNe(iT));
-                jacobianFluxJouleCCell[iT][i](2, 3) += e * cells[i].Phi(iT) * (faces[i+1].jacobianFluxL[iT](0, 3) 
+                jacobianFluxJouleCCell[iT][i](2, 3) += e * cells[i].Phi(iT) * (faces[i + 1].jacobianFluxL[iT](0, 3) 
                                                      - faces[i].jacobianFluxR[iT](0, 3));
             
                 //- Right cell
-                jacobianFluxJouleRCell[iT][i](2, 0)  = e * cells[i].Phi(iT) * faces[i + 1].jacobianFluxR[iT](0,0);
-                jacobianFluxJouleRCell[iT][i](2, 1)  = e * cells[i].Phi(iT) * faces[i + 1].jacobianFluxR[iT](0,1); 
-                jacobianFluxJouleRCell[iT][i](2, 2)  = e * cells[i].Phi(iT) * faces[i + 1].jacobianFluxR[iT](0,2);
-                jacobianFluxJouleRCell[iT][i](2, 3)  = e * cells[i].Phi(iT) * faces[i + 1].jacobianFluxR[iT](0,3);  
+                jacobianFluxJouleRCell[iT][i](2, 0)  = e * cells[i].Phi(iT) * faces[i + 1].jacobianFluxR[iT](0, 0);
+                jacobianFluxJouleRCell[iT][i](2, 1)  = e * cells[i].Phi(iT) * faces[i + 1].jacobianFluxR[iT](0, 1); 
+                jacobianFluxJouleRCell[iT][i](2, 2)  = e * cells[i].Phi(iT) * faces[i + 1].jacobianFluxR[iT](0, 2);
+                jacobianFluxJouleRCell[iT][i](2, 3)  = e * cells[i].Phi(iT) * faces[i + 1].jacobianFluxR[iT](0, 3);  
             }
             else if (i == numCells - 1)
             {
@@ -297,7 +297,7 @@ void FVM::Solver::getFluxJouleJacobian()
                 jacobianFluxJouleCCell[iT][i](2, 2)  = e * cells[i].Phi(iT) * (faces[i + 1].jacobianFluxL[iT](0, 2) 
                                                      - faces[i].jacobianFluxR[iT](0, 2));
                 jacobianFluxJouleCCell[iT][i](2, 3)  = e * (faces[i + 1].fluxNe(iT) - faces[i].fluxNe(iT));
-                jacobianFluxJouleCCell[iT][i](2, 3) += e * cells[i].Phi(iT) * (faces[i+1].jacobianFluxL[iT](0, 3) 
+                jacobianFluxJouleCCell[iT][i](2, 3) += e * cells[i].Phi(iT) * (faces[i + 1].jacobianFluxL[iT](0, 3) 
                                                      - faces[i].jacobianFluxR[iT](0, 3));
             }
             else
@@ -316,7 +316,7 @@ void FVM::Solver::getFluxJouleJacobian()
                 jacobianFluxJouleCCell[iT][i](2, 2)  = e * cells[i].Phi(iT) * (faces[i + 1].jacobianFluxL[iT](0, 2) 
                                                      - faces[i].jacobianFluxR[iT](0, 2));
                 jacobianFluxJouleCCell[iT][i](2, 3)  = e * (faces[i + 1].fluxNe(iT) - faces[i].fluxNe(iT));
-                jacobianFluxJouleCCell[iT][i](2, 3) += e * cells[i].Phi(iT) * (faces[i+1].jacobianFluxL[iT](0, 3) 
+                jacobianFluxJouleCCell[iT][i](2, 3) += e * cells[i].Phi(iT) * (faces[i + 1].jacobianFluxL[iT](0, 3) 
                                                      - faces[i].jacobianFluxR[iT](0, 3));
             
                 //- Right cell
