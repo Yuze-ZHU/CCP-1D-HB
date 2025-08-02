@@ -7,7 +7,6 @@
 void FVM::Solver::setupPoisson()
 {
     using namespace Const;
-    using Tools::toRowMajor;
     MatZeroEntries(poissonMat);
     // Solving A · x = b
     RowMajorMatrixXd A(numCells, numCells);
@@ -55,7 +54,6 @@ void FVM::Solver::setupPoisson()
 void FVM::Solver::updatePhiFVM()
 {
     using namespace Const;
-    using Tools::toRowMajor;
     Eigen::VectorXd b(numCells);
     std::vector<PetscScalar> vecBlockVals(numCells);
     VecZeroEntries(phiRhsVec);

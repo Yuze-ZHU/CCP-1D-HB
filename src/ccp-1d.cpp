@@ -401,60 +401,55 @@ scalar FVM::Face::getDownwind(const scalar pLcell, const scalar pRcell, const la
     return cellL.Phi(iT) > cellR.Phi(iT) ? pLcell : pRcell;
 }
 
+
 void FVM::Face::interpolate()
 {
     using namespace Const;
-    using namespace Tools;
-    
-    for (label iT = 0; iT < numT; ++iT)
+
+    if (faceID == 0) // Left boundary
     {
-        if(faceID == 0)
-        {
-            NeR(iT)  = cellR.Ne(iT)  - distR * cellR.sNe(iT);
-            NiR(iT)  = cellR.Ni(iT)  - distR * cellR.sNi(iT);
-            EeR(iT)  = cellR.Ee(iT)  - distR * cellR.sEe(iT);
-            PhiR(iT) = cellR.Phi(iT) - distR * cellR.sPhi(iT);
-            TeR(iT)  = EeToTeND(NeR(iT), EeR(iT));
+        NeR  = cellR.Ne  - distR * cellR.sNe;
+        NiR  = cellR.Ni  - distR * cellR.sNi;
+        EeR  = cellR.Ee  - distR * cellR.sEe;
+        PhiR = cellR.Phi - distR * cellR.sPhi;
+        TeR  = (EeR.array() / NeR.array()).matrix();  
 
-            // For the boundary cells, distL and slopes are zero
-            NeL(iT)  = cellL.Ne(iT)  + distL * cellL.sNe(iT);
-            NiL(iT)  = cellL.Ni(iT)  + distL * cellL.sNi(iT);
-            EeL(iT)  = cellL.Ee(iT)  + distL * cellL.sEe(iT);
-            PhiL(iT) = cellL.Phi(iT) + distL * cellL.sPhi(iT);
-            // Zero gradient for electron energy at the boundary
-            TeL(iT)  = TeR(iT);
-        }
-        else if(faceID == numCells)
-        {
-            NeL(iT)  = cellL.Ne(iT)  + distL * cellL.sNe(iT);
-            NiL(iT)  = cellL.Ni(iT)  + distL * cellL.sNi(iT);
-            EeL(iT)  = cellL.Ee(iT)  + distL * cellL.sEe(iT);
-            PhiL(iT) = cellL.Phi(iT) + distL * cellL.sPhi(iT);
-            TeL(iT)  = EeToTeND(NeL(iT), EeL(iT));
-            // For the boundary cells, distR and slopes are zero
-            NeR(iT)  = cellR.Ne(iT)  - distR * cellR.sNe(iT);
-            NiR(iT)  = cellR.Ni(iT)  - distR * cellR.sNi(iT);
-            EeR(iT)  = cellR.Ee(iT)  - distR * cellR.sEe(iT);
-            PhiR(iT) = cellR.Phi(iT) - distR * cellR.sPhi(iT);
-            // Zero gradient for electron energy at the boundary
-            TeR(iT)  = TeL(iT);
-        }
-        else
-        {
-            NeL(iT)  = cellL.Ne(iT)  + distL * cellL.sNe(iT);
-            NiL(iT)  = cellL.Ni(iT)  + distL * cellL.sNi(iT);
-            EeL(iT)  = cellL.Ee(iT)  + distL * cellL.sEe(iT);
-            PhiL(iT) = cellL.Phi(iT) + distL * cellL.sPhi(iT);
-            TeL(iT)  = EeToTeND(NeL(iT), EeL(iT));
+        NeL  = cellL.Ne  + distL * cellL.sNe;
+        NiL  = cellL.Ni  + distL * cellL.sNi;
+        EeL  = cellL.Ee  + distL * cellL.sEe;
+        PhiL = cellL.Phi + distL * cellL.sPhi;
+        TeL  = TeR; // Zero-gradient temperature
+    }
+    else if (faceID == numCells) // Right boundary
+    {
+        NeL  = cellL.Ne  + distL * cellL.sNe;
+        NiL  = cellL.Ni  + distL * cellL.sNi;
+        EeL  = cellL.Ee  + distL * cellL.sEe;
+        PhiL = cellL.Phi + distL * cellL.sPhi;
+        TeL  = (EeL.array() / NeL.array()).matrix();  // Only used for Nondiemensionlized version
 
-            NeR(iT)  = cellR.Ne(iT)  - distR * cellR.sNe(iT);
-            NiR(iT)  = cellR.Ni(iT)  - distR * cellR.sNi(iT);
-            EeR(iT)  = cellR.Ee(iT)  - distR * cellR.sEe(iT);
-            PhiR(iT) = cellR.Phi(iT) - distR * cellR.sPhi(iT);
-            TeR(iT)  = EeToTeND(NeR(iT), EeR(iT));
-        }
+        NeR  = cellR.Ne  - distR * cellR.sNe;
+        NiR  = cellR.Ni  - distR * cellR.sNi;
+        EeR  = cellR.Ee  - distR * cellR.sEe;
+        PhiR = cellR.Phi - distR * cellR.sPhi;
+        TeR  = TeL; // Zero-gradient temperature
+    }
+    else // Interior faces
+    {
+        NeL  = cellL.Ne  + distL * cellL.sNe;
+        NiL  = cellL.Ni  + distL * cellL.sNi;
+        EeL  = cellL.Ee  + distL * cellL.sEe;
+        PhiL = cellL.Phi + distL * cellL.sPhi;
+        TeL  = (EeL.array() / NeL.array()).matrix();  
+
+        NeR  = cellR.Ne  - distR * cellR.sNe;
+        NiR  = cellR.Ni  - distR * cellR.sNi;
+        EeR  = cellR.Ee  - distR * cellR.sEe;
+        PhiR = cellR.Phi - distR * cellR.sPhi;
+        TeR  = (EeR.array() / NeR.array()).matrix();  
     }
 }
+
 
 FVM::Solver::Solver()
     : 
@@ -756,20 +751,22 @@ void FVM::Solver::getDt(bool& isWritingStepCal, bool& isResWritingStepCal, bool&
 
     dtminGlobal = 1e150;
 
+    const scalar invDe = 1.0 / De;
+    const scalar omegaMax = 2.0 * pi * fRF * numH;
+
     for (label i = 0; i < numCells; ++i)
     {
-        scalar dtminLocal   = 1e150;
-        const scalar dtDiff = 0.25 * cells[i].vol * cells[i].vol / De;
-        for(label nT = 0; nT < numT; ++nT)
-        {
-            const scalar dtConv = cells[i].vol / (muE * abs(cells[i].Ec[nT]) + 1e-120 );
-            scalar dtmin1       = min(dtDiff, dtConv);
-            dtminLocal          = min(dtminLocal, dtmin1);   
-        }
-        // Modified local time step based on the biggest harmonic frequency
-        dtminLocal  = CFL * (1. / (1. / dtminLocal + 2.0 * pi * fRF * numH));
-        cells[i].dt = dtminLocal; 
-        dtminGlobal = min(cells[i].dt, dtminGlobal);
+        const scalar dtDiff = 0.25 * cells[i].vol * cells[i].vol * invDe;
+
+        // vectorized minimum of dtConv for all time points
+        scalar dtConvMin = (cells[i].vol / (muE * cells[i].Ec.array().abs() + 1e-120)).minCoeff();
+
+        scalar dtLocal = min(dtDiff, dtConvMin);
+
+        // Harmonic balance modified timestep
+        cells[i].dt = CFL / (1.0 / dtLocal + omegaMax);
+
+        dtminGlobal = min(dtminGlobal, cells[i].dt);
     }
     
     if (timeStepType == TimeStepType::GLOBAL)
@@ -818,21 +815,22 @@ void FVM::Solver::getDtau()
 
     dtminGlobal = 1e150;
 
+    const scalar invDe = 1.0 / De;
+    const scalar omegaMax = 2.0 * pi * fRF * numH;
+
     for (label i = 0; i < numCells; ++i)
     {
-        scalar dtminLocal   = 1e150;
-        const scalar dtDiff = 0.25 * cells[i].vol * cells[i].vol / De;
-        // std::cout << "dtDiff" << dtDiff << std::endl;
-        for(label nT = 0; nT < numT; ++nT)
-        {
-            const scalar dtConv = cells[i].vol / (muE * abs(cells[i].Ec[nT]) + 1e-120 );
-            scalar dtmin1       = min(dtDiff, dtConv);
-            dtminLocal          = min(dtminLocal, dtmin1);   
-        }
-        // Modified local time step based on the biggest harmonic frequency
-        dtminLocal  = CFL * (1. / (1. / dtminLocal + 2.0 * pi * fRF * numH));
-        cells[i].dt = dtminLocal; 
-        dtminGlobal = min(cells[i].dt, dtminGlobal);
+        const scalar dtDiff = 0.25 * cells[i].vol * cells[i].vol * invDe;
+
+        // vectorized minimum of dtConv for all time points
+        scalar dtConvMin = (cells[i].vol / (muE * cells[i].Ec.array().abs() + 1e-120)).minCoeff();
+
+        scalar dtLocal = min(dtDiff, dtConvMin);
+
+        // Harmonic balance modified timestep
+        cells[i].dt = CFL / (1.0 / dtLocal + omegaMax);
+
+        dtminGlobal = min(dtminGlobal, cells[i].dt);
     }
     
     if (timeStepType == TimeStepType::GLOBAL)
@@ -1021,6 +1019,8 @@ void FVM::Solver::getSlope()
     using Tools::abs;
     using Tools::sign;
 
+    if (Const::isFirstOrder == "yes")   return;
+
     // MUSCL-type slope limiter for computing a weighted average of left and right gradients
     auto slopeLimiter = [&](scalar fL, scalar fC, scalar fR, scalar dxL, scalar dxR) 
     {
@@ -1031,41 +1031,32 @@ void FVM::Solver::getSlope()
 
     for (label i = 0; i < numCells; ++i)
     {
-        if (Const::isFirstOrder == "yes")
-            break;
+        Cell* cellC = &cells[i];
+        Cell* cellL = (i == 0) ? &cells[numCells + 1] : &cells[i - 1];
+        Cell* cellR = &cells[i + 1];
 
-        Cell *cellL = &cells[i], *cellR = &cells[i + 1], *cellC = &cells[i];
-
-        if (i == 0)
-        {
-            cellL = &cells[numCells + 1];
-        }
-        else
-        {
-            cellL = &cells[i - 1];
-        }
+        scalar dxL = faces[i].dist;
+        scalar dxR = faces[i + 1].dist;
 
         for (label iT = 0; iT < numT; ++iT)
         {
-            cellC->sNe(iT)   = slopeLimiter(cellL->Ne(iT), cellC->Ne(iT), cellR->Ne(iT), faces[i].dist, faces[i + 1].dist);
-            cellC->sNi(iT)   = slopeLimiter(cellL->Ni(iT), cellC->Ni(iT), cellR->Ni(iT), faces[i].dist, faces[i + 1].dist);
-            cellC->sEe(iT)   = slopeLimiter(cellL->Ee(iT), cellC->Ee(iT), cellR->Ee(iT), faces[i].dist, faces[i + 1].dist);
-            cellC->sPhi(iT)  = slopeLimiter(cellL->Phi(iT), cellC->Phi(iT), cellR->Phi(iT), faces[i].dist, faces[i + 1].dist);
+            cellC->sNe(iT)   = slopeLimiter(cellL->Ne(iT),  cellC->Ne(iT),  cellR->Ne(iT),  dxL, dxR);
+            cellC->sNi(iT)   = slopeLimiter(cellL->Ni(iT),  cellC->Ni(iT),  cellR->Ni(iT),  dxL, dxR);
+            cellC->sEe(iT)   = slopeLimiter(cellL->Ee(iT),  cellC->Ee(iT),  cellR->Ee(iT),  dxL, dxR);
+            cellC->sPhi(iT)  = slopeLimiter(cellL->Phi(iT), cellC->Phi(iT), cellR->Phi(iT), dxL, dxR);
         }
     }
-    // Set the slopes at the boundary cells
-    for (label iT = 0; iT < numT; ++iT)
-    {
-        cells[numCells].sNe(iT)      = 0.0;
-        cells[numCells].sNi(iT)      = 0.0;
-        cells[numCells].sEe(iT)      = 0.0;
-        cells[numCells].sPhi(iT)     = 0.0;
 
-        cells[numCells + 1].sNe(iT)  = 0.0;
-        cells[numCells + 1].sNi(iT)  = 0.0;
-        cells[numCells + 1].sEe(iT)  = 0.0;
-        cells[numCells + 1].sPhi(iT) = 0.0;
-    }
+    // Set the slopes at the boundary cells
+    cells[numCells].sNe.setZero();
+    cells[numCells].sNi.setZero();
+    cells[numCells].sEe.setZero();
+    cells[numCells].sPhi.setZero();
+
+    cells[numCells + 1].sNe.setZero();
+    cells[numCells + 1].sNi.setZero();
+    cells[numCells + 1].sEe.setZero();
+    cells[numCells + 1].sPhi.setZero();
 }
 
 void FVM::Solver::evolve()
@@ -1090,6 +1081,125 @@ void FVM::Solver::evolve()
     }
 }
 
+void FVM::Solver::updateFluidImplicitE(const label iRK)
+{
+    using namespace Const;
+    using namespace Tools;
+
+    Eigen::MatrixXd Eye     = Eigen::MatrixXd::Identity(numT, numT);
+    Eigen::VectorXd DNe     = Eigen::VectorXd::Zero(numT);
+    Eigen::VectorXd DNi     = Eigen::VectorXd::Zero(numT);
+    Eigen::VectorXd DEe     = Eigen::VectorXd::Zero(numT);
+
+    for (label i = 0; i < numCells; ++i)
+    {
+        const scalar dtOverVol = cells[i].dt / cells[i].vol;
+
+        // ===== 1. Compute rate coefficicent =====
+        for (label iT = 0; iT < numT; ++iT)
+        {
+            const scalar TeV = KToeV(EeToTe(cells[i].Ne(iT) * nRef, cells[i].Ee(iT) * EeRef));
+            cells[i].kl(iT)  = chemSets.interpolateChem(TeV) / klRef;
+        }
+
+        Eigen::MatrixXd implicitOperatorE    = Eye + alpha[iRK] * cells[i].dt * harmMat; 
+        // Eigen::MatrixXd implicitOperatorInv = implicitOperator.inverse();
+        Eigen::PartialPivLU<Eigen::MatrixXd> solverE(implicitOperatorE);
+
+        // ===== 2. Vector form computation =====
+        const auto& fluxNeL  = faces[i].fluxNe;
+        const auto& fluxNeR  = faces[i + 1].fluxNe;
+        const auto& fluxNiL  = faces[i].fluxNi;
+        const auto& fluxNiR  = faces[i + 1].fluxNi;
+        const auto& fluxEeL  = faces[i].fluxEe;
+        const auto& fluxEeR  = faces[i + 1].fluxEe;
+        const auto& fluxEeJL = faces[i].fluxEeJoule;
+        const auto& fluxEeJR = faces[i + 1].fluxEeJoule;
+
+        // Averaged electron flux and ion flux density
+        cells[i].Je = 0.5 * (fluxNeL + fluxNeR);
+        cells[i].Ji = 0.5 * (fluxNiL + fluxNiR);
+
+        // ===== 3. Compute flux and chemical reaction residuals =====
+        Eigen::VectorXd chemSource = cells[i].kl.array() * cells[i].Ne.array() * cells[i].dt * N;
+
+        cells[i].ResFluxNe  = alpha[iRK] * ((fluxNeL - fluxNeR) * dtOverVol + chemSource);
+
+
+
+        cells[i].ResFluxNi  = alpha[iRK] * ((fluxNiL - fluxNiR) * dtOverVol + chemSource);
+        cells[i].ResFluxEe  = alpha[iRK] * ((fluxEeL - fluxEeR) * dtOverVol +
+                              ((fluxEeJL - fluxEeJR).array() * cells[i].Phi.array()).matrix() * dtOverVol -
+                                chemSource * Hl);
+
+        // ===== 4. Harmonic balance residuals =====
+        cells[i].ResFluxNe -= alpha[iRK] * harmMat * cells[i].Ne * cells[i].dt;
+        cells[i].ResFluxNi -= alpha[iRK] * harmMat * cells[i].Ni * cells[i].dt;
+        cells[i].ResFluxEe -= alpha[iRK] * harmMat * cells[i].Ee * cells[i].dt;
+
+        // 
+        // DNe = implicitOperatorInv * cells[i].ResFluxNe;
+        // DNi = implicitOperatorInv * cells[i].ResFluxNi;
+        // DEe = implicitOperatorInv * cells[i].ResFluxEe;
+        DNe = solverE.solve(cells[i].ResFluxNe);
+        DNi = solverE.solve(cells[i].ResFluxNi);
+        DEe = solverE.solve(cells[i].ResFluxEe);
+
+        // ===== 5. Update solution =====
+        cells[i].Ne  = cells[i].NeOld + DNe;
+        cells[i].Ni  = cells[i].NiOld + DNi;
+        cells[i].Ee  = cells[i].EeOld + DEe;
+
+        // ===== 6. Update Te =====
+        cells[i].Te = (cells[i].Ee.array() / cells[i].Ne.array()).matrix(); // Te = Ee / Ne
+    }
+}
+
+
+void FVM::Solver::updateNeImplicitEK(const label iRK)
+{
+    using namespace Const;
+    using namespace Tools;
+
+    Eigen::MatrixXd chemMat = Eigen::MatrixXd::Zero(numT, numT);
+    Eigen::MatrixXd Eye     = Eigen::MatrixXd::Identity(numT, numT);
+    Eigen::VectorXd DNe     = Eigen::VectorXd::Zero(numT);
+
+
+    for (label i = 0; i < numCells; ++i)
+    {
+        const scalar dtOverVol = cells[i].dt / cells[i].vol;
+
+        // ===== 1. Compute rate coefficicent =====
+        for (label iT = 0; iT < numT; ++iT)
+        {
+            const scalar TeV = KToeV(EeToTe(cells[i].Ne(iT) * nRef, cells[i].Ee(iT) * EeRef));
+            cells[i].kl(iT)  = chemSets.interpolateChem(TeV) / klRef;
+            chemMat(iT, iT)      = cells[i].kl(iT); 
+        }
+
+        chemMat *= N;
+        Eigen::MatrixXd implicitOperatorEK    = Eye + alpha[iRK] * cells[i].dt * harmMat 
+                                             - alpha[iRK] * cells[i].dt * chemMat;; 
+        // Eigen::MatrixXd implicitOperatorInv = implicitOperator.inverse();
+        Eigen::PartialPivLU<Eigen::MatrixXd> solverEK(implicitOperatorEK);
+
+        const auto& fluxNeL  = faces[i].fluxNe;
+        const auto& fluxNeR  = faces[i + 1].fluxNe;
+
+        Eigen::VectorXd chemSource = cells[i].kl.array() * cells[i].Ne.array() * cells[i].dt * N;
+        cells[i].ResFluxNe  = alpha[iRK] * ((fluxNeL - fluxNeR) * dtOverVol + chemSource);
+
+        cells[i].ResFluxNe -= alpha[iRK] * harmMat * cells[i].Ne * cells[i].dt;
+
+        DNe = solverEK.solve(cells[i].ResFluxNe);
+
+        cells[i].Ne  = cells[i].NeOld + DNe;
+
+    }
+}
+
+
 void FVM::Solver::updateFluidExplicit(const label iRK)
 {
     using namespace Const;
@@ -1098,43 +1208,52 @@ void FVM::Solver::updateFluidExplicit(const label iRK)
     for (label i = 0; i < numCells; ++i)
     {
         const scalar dtOverVol = cells[i].dt / cells[i].vol;
+
+        // ===== 1. Compute rate coefficicent =====
         for (label iT = 0; iT < numT; ++iT)
         {
-            const scalar TeV       = KToeV(EeToTe(cells[i].Ne(iT) * nRef, cells[i].Ee(iT) * EeRef));
-            cells[i].kl(iT)        = chemSets.interpolateChem(TeV) / klRef;
-
-
-            cells[i].cS(iT)        = cells[i].kl(iT) * cells[i].Ne(iT) * N;
-            cells[i].Je(iT)        = (faces[i].fluxNe(iT) + faces[i + 1].fluxNe(iT)) / 2.0;
-            cells[i].Ji(iT)        = (faces[i].fluxNi(iT) + faces[i + 1].fluxNi(iT)) / 2.0;
-           
-            cells[i].ResFluxNe(iT) = alpha[iRK] * (faces[i].fluxNe(iT) - faces[i + 1].fluxNe(iT)) * dtOverVol;
-            cells[i].ResFluxNi(iT) = alpha[iRK] * (faces[i].fluxNi(iT) - faces[i + 1].fluxNi(iT)) * dtOverVol;
-            cells[i].ResFluxEe(iT) = alpha[iRK] * (faces[i].fluxEe(iT) - faces[i + 1].fluxEe(iT)) * dtOverVol;
-            cells[i].ResFluxEe(iT) += alpha[iRK] * (faces[i].fluxEeJoule(iT) - faces[i + 1].fluxEeJoule(iT))
-                                   * cells[i].Phi(iT) * dtOverVol;
-
-            cells[i].ResFluxNe(iT) += alpha[iRK] * cells[i].kl(iT) * cells[i].Ne(iT) * cells[i].dt * N;
-            cells[i].ResFluxNi(iT) += alpha[iRK] * cells[i].kl(iT) * cells[i].Ne(iT) * cells[i].dt * N;
-            cells[i].ResFluxEe(iT) -= alpha[iRK] * cells[i].kl(iT) * cells[i].Ne(iT) * cells[i].dt * N * Hl;
-
+            const scalar TeV = KToeV(EeToTe(cells[i].Ne(iT) * nRef, cells[i].Ee(iT) * EeRef));
+            cells[i].kl(iT)  = chemSets.interpolateChem(TeV) / klRef;
         }
 
+        // ===== 2. Vector form computation =====
+        const auto& fluxNeL  = faces[i].fluxNe;
+        const auto& fluxNeR  = faces[i + 1].fluxNe;
+        const auto& fluxNiL  = faces[i].fluxNi;
+        const auto& fluxNiR  = faces[i + 1].fluxNi;
+        const auto& fluxEeL  = faces[i].fluxEe;
+        const auto& fluxEeR  = faces[i + 1].fluxEe;
+        const auto& fluxEeJL = faces[i].fluxEeJoule;
+        const auto& fluxEeJR = faces[i + 1].fluxEeJoule;
+
+        // Averaged electron flux and ion flux density
+        cells[i].Je = 0.5 * (fluxNeL + fluxNeR);
+        cells[i].Ji = 0.5 * (fluxNiL + fluxNiR);
+
+        // ===== 3. Compute residuals =====
+        Eigen::VectorXd chemSource = cells[i].kl.array() * cells[i].Ne.array() * cells[i].dt * N;
+
+        cells[i].ResFluxNe  = alpha[iRK] * ((fluxNeL - fluxNeR) * dtOverVol + chemSource);
+        cells[i].ResFluxNi  = alpha[iRK] * ((fluxNiL - fluxNiR) * dtOverVol + chemSource);
+        cells[i].ResFluxEe  = alpha[iRK] * ((fluxEeL - fluxEeR) * dtOverVol +
+                                ((fluxEeJL - fluxEeJR).array() * cells[i].Phi.array()).matrix() * dtOverVol -
+                                chemSource * Hl);
+
+        // ===== 4. Harmonic balance residuals =====
         cells[i].ResFluxNe -= alpha[iRK] * harmMat * cells[i].Ne * cells[i].dt;
         cells[i].ResFluxNi -= alpha[iRK] * harmMat * cells[i].Ni * cells[i].dt;
         cells[i].ResFluxEe -= alpha[iRK] * harmMat * cells[i].Ee * cells[i].dt;
-        
-        cells[i].Ne        = cells[i].NeOld + cells[i].ResFluxNe;
-        cells[i].Ni        = cells[i].NiOld + cells[i].ResFluxNi;
-        cells[i].Ee        = cells[i].EeOld + cells[i].ResFluxEe;
-      
-        for (label iT = 0; iT < numT; ++iT)
-        {
-            cells[i].Te(iT) = EeToTeND(cells[i].Ne(iT), cells[i].Ee(iT));
-        }
-    }
 
+        // ===== 5. Update solution =====
+        cells[i].Ne  = cells[i].NeOld + cells[i].ResFluxNe;
+        cells[i].Ni  = cells[i].NiOld + cells[i].ResFluxNi;
+        cells[i].Ee  = cells[i].EeOld + cells[i].ResFluxEe;
+
+        // ===== 6. Update Te =====
+        cells[i].Te = (cells[i].Ee.array() / cells[i].Ne.array()).matrix(); // Te = Ee / Ne
+    }
 }
+
 
 
 void FVM::Solver::updateFluidHBFCI()
@@ -1218,37 +1337,49 @@ void FVM::Solver::updateFluidHBFCI()
 }
 
 
+
 void FVM::Solver::setBoundaryConditions()
 {
     using namespace Const;
-    Cell *cellLBC = &cells[numCells + 1];
-    Cell *cellRBC = &cells[numCells];
-    
-    for(label iT = 0; iT < numT; ++iT)
-    {
-        cellLBC->Ne(iT)  = cells[0].Ne(iT);
-        cellLBC->Ni(iT)  = cells[0].Ni(iT);
-        cellLBC->Ee(iT)  = cells[0].Ee(iT);
-        cellLBC->Te(iT)  = cells[0].Te(iT);
-        if (analysisMode == AnalysisMode::STEADY)
-        {
-            cellLBC->Phi(iT) = PhiRF;
-        }
-        else
-        {
-            cellLBC->Phi(iT) = PhiRF * std::sin(2.0 * pi * fRF * harmTime(iT) + phase); 
-        }
-        cellLBC->Ec(iT)  = cells[0].Ec(iT);
-        
 
-        cellRBC->Ne(iT)  = cells[numCells - 1].Ne(iT);
-        cellRBC->Ni(iT)  = cells[numCells - 1].Ni(iT);
-        cellRBC->Ee(iT)  = cells[numCells - 1].Ee(iT);
-        cellRBC->Te(iT)  = cells[numCells - 1].Te(iT);
-        cellRBC->Phi(iT) = 0.0;
-        cellRBC->Ec(iT)  = cells[numCells - 1].Ec(iT);
+    // First physical cell element
+    Cell &cell0 = cells[0]; 
+    // Last physical cell element
+    Cell &cellN = cells[numCells - 1];
+    // Ghost face element at the left boundary 
+    Cell *cellLBC = &cells[numCells + 1]; 
+    // Ghost face element at the right boundary
+    Cell *cellRBC = &cells[numCells]; 
+
+    // Precompute Phi for LBC
+    Eigen::VectorXd phiLBC(numT);
+    if (analysisMode == AnalysisMode::STEADY) 
+    {
+        phiLBC.setConstant(PhiRF);
+    } 
+    else 
+    {
+        phiLBC = (PhiRF * (2.0 * pi * fRF * harmTime.array() + phase).sin()).matrix();
     }
+
+    // Assign boundary cell values
+    // Left boundary 
+    cellLBC->Ne  = cell0.Ne;
+    cellLBC->Ni  = cell0.Ni;
+    cellLBC->Ee  = cell0.Ee;
+    cellLBC->Te  = cell0.Te;
+    cellLBC->Ec  = cell0.Ec;
+    cellLBC->Phi = phiLBC;
+
+    // Right boundary
+    cellRBC->Ne  = cellN.Ne;
+    cellRBC->Ni  = cellN.Ni;
+    cellRBC->Ee  = cellN.Ee;
+    cellRBC->Te  = cellN.Te;
+    cellRBC->Ec  = cellN.Ec;
+    cellRBC->Phi.setZero();
 }
+
 
 void FVM::Solver::sumForAve()
 {
@@ -1533,18 +1664,22 @@ void FVM::Solver::gridMetrics()
     cells[numCells  + 1].vol = 0.0;
 
     // Compute face distances
-    for (label i = 0; i < numNodes; ++i) {
-        if (i == 0) {
+    for (label i = 0; i < numNodes; ++i) 
+    {
+        if (i == 0) 
+        {
             faces[i].dist  = 0.5 * cells[i].vol;
             faces[i].distL = 0.0; 
             faces[i].distR = 0.5 * cells[i].vol;
         }
-        else if (i == numNodes - 1) {
+        else if (i == numNodes - 1) 
+        {
             faces[i].dist  = 0.5 * cells[i - 1].vol;
             faces[i].distL = 0.5 * cells[i - 1].vol;
             faces[i].distR = 0.0;
         }
-        else {
+        else 
+        {
             faces[i].dist  = 0.5 * (cells[i].vol + cells[i - 1].vol);
             faces[i].distL = 0.5 * cells[i - 1].vol;
             faces[i].distR = 0.5 * cells[i].vol;
@@ -2068,12 +2203,13 @@ void FVM::Solver::iterateExplicit()
 
             // Get the fluxes of each face
             evolve();
-            
+
             // Update electric potential and electric field in cells
             updatePhiFVM();
             
             // Update the flow field
-            updateFluidExplicit(iRK);
+            //updateFluidExplicit(iRK);
+            updateFluidImplicitE(iRK);
 
             iRK++;
         }
