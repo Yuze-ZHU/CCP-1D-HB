@@ -216,6 +216,9 @@ namespace FVM
         std::vector<RowMajorMatrixXd> jacobianFluxLNeg;
         std::vector<RowMajorMatrixXd> jacobianFluxRNeg;
 
+        Eigen::VectorXd jacobianFluxEeL;
+        Eigen::VectorXd jacobianFluxEeR;
+
         // Constructor
         //- Construct by cells
         explicit Face(const Cell &Lcell, const Cell &Rcell);
@@ -246,6 +249,18 @@ namespace FVM
         void getFluxJacobianFCI();
         void getFluxJacobianLeftBCFCI();
         void getFluxJacobianRightBCFCI();
+
+        void getFluxJacobianPCI1();
+        void getFluxJacobianLeftBCPCI1();
+        void getFluxJacobianRightBCPCI1();
+
+        void getFluxJacobianPCI2();
+        void getFluxJacobianLeftBCPCI2();
+        void getFluxJacobianRightBCPCI2();
+
+        void getFluxJacobianEe();
+        void getFluxJacobianLeftBCEe();
+        void getFluxJacobianRightBCEe();
 
         //- Get the negative value of flux jaocobian
         void getFluxJacobianNeg();
@@ -330,17 +345,26 @@ namespace FVM
         //- Global right-hand side (RHS) vector of the coupled system, including flux, source, and HB terms
         Vec rhsGlobal;
 
+
+        //- Global Jacobian matrix of fluxEe
+        Mat jacobianEeGlobal;
+
+        Vec incrementEe;
+
+        //- Global right-hand side (RHS) vector of the PCI2 system, only including fluxEe;
+        Vec rhsEe;
+
         //
         // Constructor
         Solver();
 
         // Destructor
-        ~Solver();
+        ~Solver(); 
 
         // Member function
         //- Add values to a block matrix
         inline void addValuesBlock(Mat &mat, PetscInt row, PetscInt col,
-                            const Eigen::Matrix<double, 4, 4, Eigen::RowMajor> &block);
+                            const RowMajorMatrixXd &block);
 
         //- Initialize the flow region
         void initlizeFluid();
@@ -369,6 +393,7 @@ namespace FVM
         //- Solving
         void iterateExplicit();
         void iterateHBPCI1();
+        void iterateHBPCI2();
         void iterateHBFCI();
 
         //- Update fluid field
@@ -377,24 +402,43 @@ namespace FVM
         void updateNiEeImplicitE(const label iRK);
         void updateFluidImplicitE(const label iRK);
         void updateFluidHBFCI();
+        void updateFluidHBPCI1();
+        void updateFluidHBPCI2();
+        void updateEeHBPCI2(const label iRK);
 
         //- Get the Joule flux source Jacobian
-        void getFluxJouleJacobian();
+        void getFluxJouleJacobianFCI();
+        void getFluxJouleJacobianPCI1();
     
         //- Get chemical source Jacobian
-        void getCsJacobian();
+        void getCsJacobianFCI();
+        void getCsJacobianPCI1();
+        void getCsJacobianPCI2();
 
         //- Get mass stiffness matrix
-        void getMassDiagnal();
+        void getMassDiagnal(); // used in PCI1, PCI2, FCI
 
         //- Assembel global RHS vector
-        void assembleGlobalVecRHS(const label iRK);
+        void assembleGlobalVecRHSFCI(const label iRK);
+        void assembleGlobalVecRHSPCI1(const label iRK);
+        void assembleGlobalVecRHSPCI2(const label iRK);
+        void assembleGlobalVecRHSEe(const label iRK);
+
+        //- Assemble global jacobian using FDM
+        void assembleGlobalJacobianFDMForFirstCellFCI(const label iT, const label iC);
+        void dumpLocalBlocksFromGlobalJ(const label iT, const label iC);
 
         //- Assembel local flux Jacobian matrix
-        void assembleLocalFluxJacobian();
+        void assembleLocalFluxJacobianFCI();
+        void assembleLocalFluxJacobianPCI1();
+        void assembleLocalFluxJacobianPCI2();
+        void assembleLocalFluxJacobianEe();
+
 
         //- Assemble global Jacobian matrix
         void assembleGlobalJacobian();
+        void assembleGlobalJacobianPCI2();
+        void assembleGlobalJacobianEe();
 
         //- Update Phi for electric potential
         void setupPoisson();

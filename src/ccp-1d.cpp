@@ -135,6 +135,17 @@ namespace Tools
     }
 }
 
+
+namespace {
+    static inline void print4x4(const char* name, const PetscScalar* M) {
+        std::cout << name << ":\n";
+        for (int r = 0; r < 4; ++r) {
+            for (int c = 0; c < 4; ++c)
+                std::cout << M[4*r + c] << (c==3?'\n':' ');
+        }
+    }
+}
+
 // ------------------------------------------------------- //
 // Description:                                            //
 // Constructor and deconstructor for cell class            //
@@ -348,7 +359,9 @@ FVM::Face::Face(const Cell &Lcell, const Cell &Rcell)
     fluxNi(Eigen::VectorXd::Zero(Const::numT)),
     fluxEe(Eigen::VectorXd::Zero(Const::numT)),
     fluxEeJoule(Eigen::VectorXd::Zero(Const::numT)),
-    fluxPhi(Eigen::VectorXd::Zero(Const::numT))
+    fluxPhi(Eigen::VectorXd::Zero(Const::numT)),
+    jacobianFluxEeL(Eigen::VectorXd::Zero(Const::numT)),
+    jacobianFluxEeR(Eigen::VectorXd::Zero(Const::numT))
 {
     
     if (faceID == 0)
@@ -419,6 +432,27 @@ void FVM::Face::interpolate()
         EeL  = cellL.Ee  + distL * cellL.sEe;
         PhiL = cellL.Phi + distL * cellL.sPhi;
         TeL  = TeR; // Zero-gradient temperature
+
+        //         // ---------- 调试输出 ----------
+        // std::cout << std::defaultfloat;    // 先回到默认十进制
+        // std::cout << std::scientific << std::setprecision(8);
+        // std::cout << "[Boundary LEFT] faceID=" << faceID
+        //           << " cellL=" << cellIDL << " cellR=" << cellIDR << "\n";
+        // std::cout << "  dist=" << dist << "  distL=" << distL << "  distR=" << distR << "\n";
+        // for (label t = 0; t < numT; ++t) {
+        //     std::cout << "  iT=" << t
+        //               << " | cellL: Ne=" << cellL.Ne(t) << " Ni=" << cellL.Ni(t)
+        //               << " Ee=" << cellL.Ee(t) << " Phi=" << cellL.Phi(t)
+        //               << " Te=" << cellL.Te(t)  // 如需一致用你的转换函数替换
+        //               << " | cellR: Ne=" << cellR.Ne(t) << " Ni=" << cellR.Ni(t)
+        //               << " Ee=" << cellR.Ee(t) << " Phi=" << cellR.Phi(t)
+        //               << " Te=" << cellR.Te(t)
+        //               << " | faceL: NeL=" << NeL(t) << " NiL=" << NiL(t)
+        //               << " EeL=" << EeL(t) << " PhiL=" << PhiL(t) << " TeL=" << TeL(t)
+        //               << " | faceR: NeR=" << NeR(t) << " NiR=" << NiR(t)
+        //               << " EeR=" << EeR(t) << " PhiR=" << PhiR(t) << " TeR=" << TeR(t)
+        //               << "\n";
+        // }
     }
     else if (faceID == numCells) // Right boundary
     {
@@ -542,7 +576,8 @@ FVM::Solver::Solver()
 
     
     if ((Const::implicitScheme == ImplicitScheme::PCI1)
-       ||(Const::implicitScheme == ImplicitScheme::FCI))
+       ||(Const::implicitScheme == ImplicitScheme::FCI)
+       ||(Const::implicitScheme == ImplicitScheme::PCI2))
        {
             std::cout << " ------ Constructing matrices and vectors for implicit scheme --------" << std::endl;
             // Matrix creation
@@ -571,6 +606,22 @@ FVM::Solver::Solver()
             VecSetUp(incrementGlobal);
 
             VecDuplicate(incrementGlobal, &rhsGlobal);
+
+            if(Const::implicitScheme == ImplicitScheme::PCI2)
+            {
+                const label DoFEe = Const::numCells * Const::numT;
+
+                MatCreate(PETSC_COMM_SELF, &jacobianEeGlobal);
+                MatSetSizes(jacobianEeGlobal, PETSC_DECIDE, PETSC_DECIDE, DoFEe, DoFEe);
+                MatSetType(jacobianEeGlobal, MATSEQAIJ);
+                MatSeqAIJSetPreallocation(jacobianEeGlobal, Const::numT + 2, NULL);
+
+                VecCreate(PETSC_COMM_SELF, &rhsEe);
+                VecSetSizes(rhsEe, PETSC_DECIDE, DoFEe);
+                VecSetFromOptions(rhsEe);
+
+                VecDuplicate(rhsEe, &incrementEe); 
+            }
 
             std::cout << " ------ Constructing matrices and vectors for implicit scheme finished --------"
                       << std::endl;
@@ -601,7 +652,7 @@ FVM::Solver::~Solver()
 }
 
 inline void FVM::Solver::addValuesBlock(Mat &mat, PetscInt row, PetscInt col,
-                         const Eigen::Matrix<scalar, 4, 4, Eigen::RowMajor> &block)
+                         const RowMajorMatrixXd &block)
 {
     MatSetValuesBlocked(mat, 1, &row, 1, &col, block.data(), ADD_VALUES);
 }
@@ -840,7 +891,6 @@ void FVM::Solver::getDtau()
             cells[i].dt = dtminGlobal;
         }
     }
-
 }
 
 void FVM::Solver::getMassDiagnal()
@@ -848,6 +898,7 @@ void FVM::Solver::getMassDiagnal()
     using namespace Const;
     for (label i = 0; i < numCells; ++i)
     {
+        cells[i].massDiagnal.setZero();
         for (label bs = 0; bs < blockSizeS; ++bs)
         {
             cells[i].massDiagnal(bs, bs) = cells[i].vol / cells[i].dt;
@@ -855,7 +906,8 @@ void FVM::Solver::getMassDiagnal()
     }
 }
 
-void FVM::Solver::assembleGlobalVecRHS(const label iRK)
+
+void FVM::Solver::assembleGlobalVecRHSFCI(const label iRK)
 {
     using namespace Const;
     using namespace Tools;
@@ -865,9 +917,12 @@ void FVM::Solver::assembleGlobalVecRHS(const label iRK)
     for (label i = 0; i < numCells; ++i)
     {
         //- Harmonic balance terms
-        cells[i].ResFluxNe = - alpha[iRK] * harmMat * cells[i].Ne * cells[i].vol;
-        cells[i].ResFluxNi = - alpha[iRK] * harmMat * cells[i].Ni * cells[i].vol;
-        cells[i].ResFluxEe = - alpha[iRK] * harmMat * cells[i].Ee * cells[i].vol;
+        // cells[i].ResFluxNe = - alpha[iRK] * harmMat * cells[i].Ne * cells[i].vol;
+        // cells[i].ResFluxNi = - alpha[iRK] * harmMat * cells[i].Ni * cells[i].vol;
+        // cells[i].ResFluxEe = - alpha[iRK] * harmMat * cells[i].Ee * cells[i].vol;
+        cells[i].ResFluxNe.setZero();
+        cells[i].ResFluxNi.setZero();
+        cells[i].ResFluxEe.setZero();
 
         for (label iT = 0; iT < numT; ++iT)
         {
@@ -882,8 +937,8 @@ void FVM::Solver::assembleGlobalVecRHS(const label iRK)
             cells[i].ResFluxNe(iT)  += alpha[iRK] * (faces[i].fluxNe(iT) - faces[i + 1].fluxNe(iT));
             cells[i].ResFluxNi(iT)  += alpha[iRK] * (faces[i].fluxNi(iT) - faces[i + 1].fluxNi(iT));
             cells[i].ResFluxEe(iT)  += alpha[iRK] * (faces[i].fluxEe(iT) - faces[i + 1].fluxEe(iT));
-            cells[i].ResFluxEe(iT)  += alpha[iRK] * (faces[i].fluxEeJoule(iT) - faces[i + 1].fluxEeJoule(iT)) 
-                                     * cells[i].Phi(iT);
+            // cells[i].ResFluxEe(iT)  += alpha[iRK] * (faces[i].fluxEeJoule(iT) - faces[i + 1].fluxEeJoule(iT)) 
+            //                          * cells[i].Phi(iT);
             cells[i].ResFluxPhi(iT)  = alpha[iRK] * (faces[i].fluxPhi(iT) - faces[i + 1].fluxPhi(iT));
 
             //- Chemical Source terms
@@ -901,8 +956,7 @@ void FVM::Solver::assembleGlobalVecRHS(const label iRK)
             rhsiTCell[3]             = cells[i].ResFluxPhi(iT);
 
             VecSetValuesBlocked(rhsGlobal, 1, &blockID, rhsiTCell, INSERT_VALUES);
-        }
-        
+        } 
     }
     VecAssemblyBegin(rhsGlobal);
     VecAssemblyEnd(rhsGlobal);
@@ -914,7 +968,297 @@ void FVM::Solver::assembleGlobalVecRHS(const label iRK)
 
 }
 
-void FVM::Solver::assembleLocalFluxJacobian()
+
+void FVM::Solver::assembleGlobalVecRHSPCI2(const label iRK)
+{
+    using namespace Const;
+    using namespace Tools;
+    VecSet(rhsGlobal, 0.0);
+    scalar TeV;
+
+    for (label i = 0; i < numCells; ++i)
+    {
+        //- Harmonic balance terms
+        cells[i].ResFluxNe = - alpha[iRK] * harmMat * cells[i].Ne * cells[i].vol;
+        cells[i].ResFluxNi = - alpha[iRK] * harmMat * cells[i].Ni * cells[i].vol;
+
+        for (label iT = 0; iT < numT; ++iT)
+        {
+            TeV = KToeV(EeToTe(cells[i].Ne(iT) * nRef, cells[i].Ee(iT) * EeRef));
+            cells[i].kl(iT) = chemSets.interpolateChem(TeV) / klRef;
+
+            cells[i].cS(iT)          = cells[i].kl(iT) * cells[i].Ne(iT) * N;
+            cells[i].Je(iT)          = (faces[i].fluxNe(iT) + faces[i + 1].fluxNe(iT)) / 2.0;
+            cells[i].Ji(iT)          = (faces[i].fluxNi(iT) + faces[i + 1].fluxNi(iT)) / 2.0;
+
+            //- Flux terms
+            cells[i].ResFluxNe(iT)  += alpha[iRK] * (faces[i].fluxNe(iT) - faces[i + 1].fluxNe(iT));
+            cells[i].ResFluxNi(iT)  += alpha[iRK] * (faces[i].fluxNi(iT) - faces[i + 1].fluxNi(iT));
+            cells[i].ResFluxPhi(iT)  = alpha[iRK] * (faces[i].fluxPhi(iT) - faces[i + 1].fluxPhi(iT));
+
+            //- Chemical Source terms
+            cells[i].ResFluxNe(iT)  += alpha[iRK] * cells[i].kl(iT) * N * cells[i].Ne(iT) * cells[i].vol; 
+            cells[i].ResFluxNi(iT)  += alpha[iRK] * cells[i].kl(iT) * N * cells[i].Ne(iT) * cells[i].vol;
+            cells[i].ResFluxPhi(iT) += alpha[iRK] * (cells[i].Ne(iT) - cells[i].Ni(iT)) * cells[i].vol * e;
+
+
+            PetscScalar rhsiTCell[3];
+            PetscInt blockID = iT * numCells + i;
+            rhsiTCell[0]             = cells[i].ResFluxNe(iT);
+            rhsiTCell[1]             = cells[i].ResFluxNi(iT);
+            rhsiTCell[2]             = cells[i].ResFluxPhi(iT);
+
+            VecSetValuesBlocked(rhsGlobal, 1, &blockID, rhsiTCell, INSERT_VALUES);
+        } 
+    }
+    VecAssemblyBegin(rhsGlobal);
+    VecAssemblyEnd(rhsGlobal);
+    // PetscViewer viewer;
+    // PetscViewerASCIIGetStdout(PETSC_COMM_WORLD, &viewer);
+    // PetscViewerPushFormat(viewer, PETSC_VIEWER_ASCII_MATLAB); 
+    // VecView(rhsGlobal, viewer);
+}
+
+
+void FVM::Solver::assembleGlobalVecRHSEe(const label iRK)
+{
+    using namespace Const;
+    using namespace Tools;
+    VecSet(rhsEe, 0.0);
+    scalar TeV;
+
+    for (label i = 0; i < numCells; ++i)
+    {
+        //- Harmonic balance terms
+        cells[i].ResFluxEe = - alpha[iRK] * harmMat * cells[i].Ee * cells[i].vol;
+
+        for (label iT = 0; iT < numT; ++iT)
+        {
+            TeV = KToeV(EeToTe(cells[i].Ne(iT) * nRef, cells[i].Ee(iT) * EeRef));
+            cells[i].kl(iT) = chemSets.interpolateChem(TeV) / klRef;
+
+
+            //- Flux terms
+            cells[i].ResFluxEe(iT)  += alpha[iRK] * (faces[i].fluxEe(iT) - faces[i + 1].fluxEe(iT));
+            cells[i].ResFluxEe(iT)  += alpha[iRK] * (faces[i].fluxEeJoule(iT) - faces[i + 1].fluxEeJoule(iT)) 
+                                     * cells[i].Phi(iT);
+
+            //- Chemical Source terms
+            cells[i].ResFluxEe(iT)  -= alpha[iRK] * cells[i].kl(iT) * N * cells[i].Ne(iT) * cells[i].vol * Hl;
+
+            PetscScalar rhsiTCell;
+            PetscInt blockID = iT * numCells + i;
+            rhsiTCell           = cells[i].ResFluxEe(iT);
+     
+
+            VecSetValues(rhsEe, 1, &blockID, &rhsiTCell, INSERT_VALUES);
+        } 
+    }
+    VecAssemblyBegin(rhsEe);
+    VecAssemblyEnd(rhsEe);
+}
+
+void FVM::Solver::assembleGlobalJacobianFDMForFirstCellFCI(const label iT, const label iC)
+{
+    using namespace Const;
+
+    getSlope();
+    evolve();
+    assembleGlobalVecRHSFCI(0);
+
+    const label numVars = 4;               // [Ne, Ni, Ee, Phi]
+    const PetscScalar delta = 1e-4;        // 微小扰动量
+
+    // 残差索引（对应 (iT,iC) 这个块的 4 个分量）
+    const PetscInt idx = 4 * (iT * numCells + iC);
+    PetscInt indices[4] = { idx + 0, idx + 1, idx + 2, idx + 3 };
+
+    // 当前单元引用
+    auto &cellC = cells[iC];
+
+    // 备份原值
+    PetscScalar originalNe  = cellC.Ne(iT);
+    PetscScalar originalNi  = cellC.Ni(iT);
+    PetscScalar originalEe  = cellC.Ee(iT);
+    PetscScalar originalPhi = cellC.Phi(iT);
+
+    // 原始残差 R0
+    PetscScalar R0[4];
+    VecGetValues(rhsGlobal, 4, indices, R0);
+
+    // 三个 4x4 局部雅各比块
+    PetscScalar JL[4][4] = {0};
+    PetscScalar JC[4][4] = {0};
+    PetscScalar JR[4][4] = {0};
+
+    // 复用函数：对某单元做扰动，得到相对 (iT,iC) 残差的导数
+    auto fdFillColumnsForCell = [&](label cellP, PetscScalar J[4][4])
+    {
+        auto &cell = cells[cellP];
+
+        // 备份该单元的原值
+        PetscScalar Ne0  = cell.Ne(iT);
+        PetscScalar Ni0  = cell.Ni(iT);
+        PetscScalar Ee0  = cell.Ee(iT);
+        PetscScalar Phi0 = cell.Phi(iT);
+
+        for (label j = 0; j < numVars; ++j)
+        {
+            if (j == 0) cell.Ne(iT)  = Ne0  + delta * Ne0;
+            if (j == 1) cell.Ni(iT)  = Ni0  + delta * Ni0;
+            if (j == 2) cell.Ee(iT)  = Ee0  + delta * Ee0;
+            if (j == 3) cell.Phi(iT) = Phi0 + delta * Phi0;
+
+            getSlope();
+            evolve();
+            assembleGlobalVecRHSFCI(0);
+
+            PetscScalar R1[4];
+            VecGetValues(rhsGlobal, 4, indices, R1);
+
+            PetscScalar denom =
+                (j == 0) ? (delta * Ne0)  :
+                (j == 1) ? (delta * Ni0)  :
+                (j == 2) ? (delta * Ee0)  :
+                           (delta * Phi0);
+
+            for (label l = 0; l < numVars; ++l)
+                J[l][j] = (R0[l] - R1[l]) / denom;
+
+            // 恢复
+            cell.Ne(iT)  = Ne0;
+            cell.Ni(iT)  = Ni0;
+            cell.Ee(iT)  = Ee0;
+            cell.Phi(iT) = Phi0;
+        }
+
+        // 恢复系统残差
+        getSlope();
+        evolve();
+        assembleGlobalVecRHSFCI(0);
+        VecGetValues(rhsGlobal, 4, indices, R0);
+    };
+
+    // 计算中心块
+    fdFillColumnsForCell(iC, JC);
+
+    // 左右块按条件计算
+    if (iC > 0)
+        fdFillColumnsForCell(iC - 1, JL);
+    if (iC < numCells - 1)
+        fdFillColumnsForCell(iC + 1, JR);
+
+    // 给中心块前三个对角加质量项
+    JC[0][0] += cellC.vol / cellC.dt;
+    JC[1][1] += cellC.vol / cellC.dt;
+    JC[2][2] += cellC.vol / cellC.dt;
+
+    // 打印
+    auto print4x4 = [&](const char* name, PetscScalar J[4][4])
+    {
+        std::cout << name << " (iT=" << iT << ", cell=" << iC << "):\n";
+        for (label r = 0; r < numVars; ++r) {
+            for (label c = 0; c < numVars; ++c) {
+                std::cout << J[r][c] << (c+1==numVars?'\n':' ');
+            }
+        }
+    };
+
+    if (iC > 0)              print4x4("J_L", JL);
+    print4x4("J_C", JC);
+    if (iC < numCells - 1)   print4x4("J_R", JR);
+
+    // 恢复当前单元
+    cellC.Ne(iT)  = originalNe;
+    cellC.Ni(iT)  = originalNi;
+    cellC.Ee(iT)  = originalEe;
+    cellC.Phi(iT) = originalPhi;
+}
+
+void FVM::Solver::dumpLocalBlocksFromGlobalJ(const label iT, const label iC) {
+    using namespace Const;
+    const PetscInt bs  = 4;                     // block size = 4
+    const PetscInt row = iT * numCells + iC;
+
+    const PetscInt colL = row - 1;
+    const PetscInt colC = row;
+    const PetscInt colR = row + 1;
+
+    PetscScalar JL[bs*bs] = {0}, JC[bs*bs] = {0}, JR[bs*bs] = {0};
+
+    auto fillBlock = [&](PetscInt rb, PetscInt cb, PetscScalar* M) {
+        PetscInt rows[4], cols[4];
+        for (int r = 0; r < 4; ++r) rows[r] = bs * rb + r;
+        for (int c = 0; c < 4; ++c) cols[c] = bs * cb + c;
+        MatGetValues(jacobianAllGlobal, 4, rows, 4, cols, M);
+    };
+
+    // 中心块
+    fillBlock(row, colC, JC);
+
+    // 左右块（存在时）
+    if (iC > 0)               fillBlock(row, colL, JL);
+    if (iC < numCells - 1)    fillBlock(row, colR, JR);
+
+    if (iC > 0) print4x4("J_L (from global)", JL);
+    print4x4("J_C (from global)", JC);
+    if (iC < numCells - 1) print4x4("J_R (from global)", JR);
+}
+
+
+
+void FVM::Solver::assembleGlobalVecRHSPCI1(const label iRK)
+{
+    using namespace Const;
+    using namespace Tools;
+    VecSet(rhsGlobal, 0.0);
+
+    for (label i = 0; i < numCells; ++i)
+    {
+        //- Harmonic balance terms
+        cells[i].ResFluxNe = - alpha[iRK] * harmMat * cells[i].Ne * cells[i].vol;
+        cells[i].ResFluxNi = - alpha[iRK] * harmMat * cells[i].Ni * cells[i].vol;
+        cells[i].ResFluxEe = - alpha[iRK] * harmMat * cells[i].Ee * cells[i].vol;
+
+        for (label iT = 0; iT < numT; ++iT)
+        {
+            const scalar TeV = KToeV(EeToTe(cells[i].Ne(iT) * nRef, cells[i].Ee(iT) * EeRef));
+            cells[i].kl(iT) = chemSets.interpolateChem(TeV) / klRef;
+
+            cells[i].cS(iT)          = cells[i].kl(iT) * cells[i].Ne(iT) * N;
+            cells[i].Je(iT)          = (faces[i].fluxNe(iT) + faces[i + 1].fluxNe(iT)) / 2.0;
+            cells[i].Ji(iT)          = (faces[i].fluxNi(iT) + faces[i + 1].fluxNi(iT)) / 2.0;
+
+            //- Flux terms
+            cells[i].ResFluxNe(iT)  += alpha[iRK] * (faces[i].fluxNe(iT) - faces[i + 1].fluxNe(iT));
+            cells[i].ResFluxNi(iT)  += alpha[iRK] * (faces[i].fluxNi(iT) - faces[i + 1].fluxNi(iT));
+            cells[i].ResFluxEe(iT)  += alpha[iRK] * (faces[i].fluxEe(iT) - faces[i + 1].fluxEe(iT));
+            cells[i].ResFluxEe(iT)  += alpha[iRK] * (faces[i].fluxEeJoule(iT) - faces[i + 1].fluxEeJoule(iT)) 
+                                     * cells[i].Phi(iT);
+
+            //- Chemical Source terms
+            cells[i].ResFluxNe(iT)  += alpha[iRK] * cells[i].kl(iT) * N * cells[i].Ne(iT) * cells[i].vol; 
+            cells[i].ResFluxNi(iT)  += alpha[iRK] * cells[i].kl(iT) * N * cells[i].Ne(iT) * cells[i].vol;
+            cells[i].ResFluxEe(iT)  -= alpha[iRK] * cells[i].kl(iT) * N * cells[i].Ne(iT) * cells[i].vol * Hl;
+
+            PetscScalar rhsiTCell[3];
+            PetscInt blockID = iT * numCells + i;
+            rhsiTCell[0]             = cells[i].ResFluxNe(iT);
+            rhsiTCell[1]             = cells[i].ResFluxNi(iT);
+            rhsiTCell[2]             = cells[i].ResFluxEe(iT);
+
+            VecSetValuesBlocked(rhsGlobal, 1, &blockID, rhsiTCell, INSERT_VALUES);
+        } 
+    }
+    VecAssemblyBegin(rhsGlobal);
+    VecAssemblyEnd(rhsGlobal);
+    // PetscViewer viewer;
+    // PetscViewerASCIIGetStdout(PETSC_COMM_WORLD, &viewer);
+    // PetscViewerPushFormat(viewer, PETSC_VIEWER_ASCII_MATLAB); 
+    // VecView(rhsGlobal, viewer);
+}
+
+void FVM::Solver::assembleLocalFluxJacobianFCI()
 {
     using namespace Const;
     for (auto &face : faces)
@@ -937,15 +1281,83 @@ void FVM::Solver::assembleLocalFluxJacobian()
     }    
 }
 
+
+
+void FVM::Solver::assembleLocalFluxJacobianPCI2()
+{
+    using namespace Const;
+    for (auto &face : faces)
+    {
+        if (face.faceID == 0)
+        {
+            face.getFluxJacobianLeftBCPCI2();
+            face.getFluxJacobianNeg();
+        }
+        else if (face.faceID == numCells)
+        {
+            face.getFluxJacobianRightBCPCI2();
+            face.getFluxJacobianNeg();
+        }
+        else
+        {
+            face.getFluxJacobianPCI2();
+            face.getFluxJacobianNeg();
+        }
+    }    
+}
+
+void FVM::Solver::assembleLocalFluxJacobianEe()
+{
+    using namespace Const;
+    for (auto &face : faces)
+    {
+        if (face.faceID == 0)
+        {
+            face.getFluxJacobianLeftBCEe();
+        }
+        else if (face.faceID == numCells)
+        {
+            face.getFluxJacobianRightBCEe();
+        }
+        else
+        {
+            face.getFluxJacobianEe();
+        }
+    }    
+}
+
+void FVM::Solver::assembleLocalFluxJacobianPCI1()
+{
+    using namespace Const;
+    for (auto &face : faces)
+    {
+        if (face.faceID == 0)
+        {
+            face.getFluxJacobianLeftBCPCI1();
+            face.getFluxJacobianNeg();
+        }
+        else if (face.faceID == numCells)
+        {
+            face.getFluxJacobianRightBCPCI1();
+            face.getFluxJacobianNeg();
+        }
+        else
+        {
+            face.getFluxJacobianPCI1();
+            face.getFluxJacobianNeg();
+        }
+    }    
+}
+
 void FVM::Solver::assembleGlobalJacobian()
 {
     using namespace Const;
     using namespace Tools;
-    RowMajorMatrixXd identity4 = RowMajorMatrixXd::Zero(4, 4);
-    identity4(0, 0) = 1.0;
-    identity4(1, 1) = 1.0;
-    identity4(2, 2) = 1.0;
-    RowMajorMatrixXd sumDiag   = RowMajorMatrixXd::Zero(Const::blockSizeS, Const::blockSizeS);
+    RowMajorMatrixXd identity = RowMajorMatrixXd::Zero(blockSizeS, blockSizeS);
+    identity(0, 0) = 1.0;
+    identity(1, 1) = 1.0;
+    identity(2, 2) = 1.0;
+    RowMajorMatrixXd sumDiag   = RowMajorMatrixXd::Zero(blockSizeS, blockSizeS);
     MatZeroEntries(jacobianAllGlobal);
     for (label iT = 0; iT < numT; ++iT)
     {
@@ -972,6 +1384,8 @@ void FVM::Solver::assembleGlobalJacobian()
         const auto &faceRBC = faces[numCells];
         PetscInt idLRBC = iT * numCells + faceRBC.cellIDL;
         addValuesBlock(jacobianAllGlobal, idLRBC, idLRBC, faceRBC.jacobianFluxL[iT]);
+
+        
     
         // --- 2.  Mass + chemical + joule source Jacaobian ---
         for (label i = 0; i < numCells; ++i)
@@ -982,34 +1396,114 @@ void FVM::Solver::assembleGlobalJacobian()
 
             // --- 2.1 Mass + chemical source ---
             sumDiag = cells[i].massDiagnal + cells[i].jacobianCs[iT];
+            // sumDiag = cells[i].massDiagnal;
             addValuesBlock(jacobianAllGlobal, idC, idC, sumDiag);
 
             // --- 2.2 Joule source contribution ---
-            if (i > 0) addValuesBlock(jacobianAllGlobal, idC, idL, jacobianFluxJouleLCell[iT][i]);
-            if (i < numCells - 1) addValuesBlock(jacobianAllGlobal, idC, idR, jacobianFluxJouleRCell[iT][i]);
-            addValuesBlock(jacobianAllGlobal, idC, idC, jacobianFluxJouleCCell[iT][i]);
+            // if (i > 0) addValuesBlock(jacobianAllGlobal, idC, idL, jacobianFluxJouleLCell[iT][i]);
+            // if (i < numCells - 1) addValuesBlock(jacobianAllGlobal, idC, idR, jacobianFluxJouleRCell[iT][i]);
+            // addValuesBlock(jacobianAllGlobal, idC, idC, jacobianFluxJouleCCell[iT][i]);
+        }
+        // --- 3.  Harmonic balance source Jacobian ---
+        // for (label jT = 0; jT < numT; ++jT)
+        // {
+        //     const scalar Eij = harmMat(iT, jT);
+        //     for (label i = 0; i < numCells; ++i)
+        //     {
+        //         PetscInt row = iT  * numCells + i;
+        //         PetscInt col = jT  * numCells + i;
+        //         jacobianHBs  = Eij * identity * cells[i].vol;
+        //         addValuesBlock(jacobianAllGlobal, row, col, jacobianHBs);
+        //     }
+        // }
+    }
+    MatAssemblyBegin(jacobianAllGlobal, MAT_FINAL_ASSEMBLY);
+    MatAssemblyEnd(jacobianAllGlobal, MAT_FINAL_ASSEMBLY);
+    
+    // PetscViewer viewer;
+    // PetscViewerASCIIOpen(PETSC_COMM_WORLD, "jacobian.m", &viewer);
+    // PetscViewerPushFormat(viewer, PETSC_VIEWER_ASCII_MATLAB);  //
+    // MatView(jacobianAllGlobal, viewer);
+    // PetscViewerDestroy(&viewer);
+
+    // PetscViewer viewer;
+    // PetscViewerASCIIOpen(PETSC_COMM_WORLD, "matrix.txt", &viewer);
+    // PetscViewerPushFormat(viewer, PETSC_VIEWER_ASCII_DENSE); // 
+    // MatView(jacobianAllGlobal, viewer);
+    // PetscViewerDestroy(&viewer);
+
+}
+
+
+void FVM::Solver::assembleGlobalJacobianPCI2()
+{
+    using namespace Const;
+    using namespace Tools;
+    RowMajorMatrixXd identity = RowMajorMatrixXd::Zero(blockSizeS, blockSizeS);
+    identity(0, 0) = 1.0;
+    identity(1, 1) = 1.0;
+    identity(2, 2) = 0.0;
+    RowMajorMatrixXd sumDiag   = RowMajorMatrixXd::Zero(blockSizeS, blockSizeS);
+    MatZeroEntries(jacobianAllGlobal);
+    for (label iT = 0; iT < numT; ++iT)
+    {
+        // --- 1.  Flux Jacobian ---
+        // --- 1.1 Flux Jacobian from the interior faces ---
+        for (label f = 1; f < numCells; ++f)
+        {
+            const auto &face = faces[f];
+
+            PetscInt idL = iT * numCells + face.cellIDL;
+            PetscInt idR = iT * numCells + face.cellIDR;
+
+            addValuesBlock(jacobianAllGlobal, idL, idL, face.jacobianFluxL[iT]);
+            addValuesBlock(jacobianAllGlobal, idL, idR, face.jacobianFluxR[iT]);
+            addValuesBlock(jacobianAllGlobal, idR, idL, face.jacobianFluxLNeg[iT]);
+            addValuesBlock(jacobianAllGlobal, idR, idR, face.jacobianFluxRNeg[iT]);
+        }
+        // --- 1.2 Flux Jacobian from the left boundary faces ---       
+        const auto &faceLBC = faces[0];
+        PetscInt idRLBC = iT * numCells + faceLBC.cellIDR;
+        addValuesBlock(jacobianAllGlobal, idRLBC, idRLBC, faceLBC.jacobianFluxRNeg[iT]);
+
+        // --- 1.3 Flux Jacobian from the right boundary faces ---      
+        const auto &faceRBC = faces[numCells];
+        PetscInt idLRBC = iT * numCells + faceRBC.cellIDL;
+        addValuesBlock(jacobianAllGlobal, idLRBC, idLRBC, faceRBC.jacobianFluxL[iT]);
+
+        // --- 2.  Mass + chemical + joule source Jacaobian ---
+        for (label i = 0; i < numCells; ++i)
+        {
+            PetscInt idC = iT * numCells + i;
+            PetscInt idR = idC + 1;
+            PetscInt idL = idC - 1;
+
+            // --- 2.1 Mass + chemical source ---
+            sumDiag = cells[i].massDiagnal + cells[i].jacobianCs[iT];
+            // sumDiag = cells[i].massDiagnal;
+            addValuesBlock(jacobianAllGlobal, idC, idC, sumDiag);
         }
         // --- 3.  Harmonic balance source Jacobian ---
         for (label jT = 0; jT < numT; ++jT)
         {
-            scalar Eij = harmMat(iT, jT);
+            const scalar Eij = harmMat(iT, jT);
             for (label i = 0; i < numCells; ++i)
             {
                 PetscInt row = iT  * numCells + i;
                 PetscInt col = jT  * numCells + i;
-                jacobianHBs  = Eij * identity4 * cells[i].vol;
+                jacobianHBs  = Eij * identity * cells[i].vol;
                 addValuesBlock(jacobianAllGlobal, row, col, jacobianHBs);
             }
         }
     }
     MatAssemblyBegin(jacobianAllGlobal, MAT_FINAL_ASSEMBLY);
     MatAssemblyEnd(jacobianAllGlobal, MAT_FINAL_ASSEMBLY);
-    PetscViewer viewer;
-    PetscViewerASCIIOpen(PETSC_COMM_WORLD, "jacobian.m", &viewer);
-    PetscViewerPushFormat(viewer, PETSC_VIEWER_ASCII_MATLAB);  // 加这一行
-    MatView(jacobianAllGlobal, viewer);
-    PetscViewerDestroy(&viewer);
-
+    
+    // PetscViewer viewer;
+    // PetscViewerASCIIOpen(PETSC_COMM_WORLD, "jacobian.m", &viewer);
+    // PetscViewerPushFormat(viewer, PETSC_VIEWER_ASCII_MATLAB);  //
+    // MatView(jacobianAllGlobal, viewer);
+    // PetscViewerDestroy(&viewer);
 }
 
 
@@ -1019,7 +1513,16 @@ void FVM::Solver::getSlope()
     using Tools::abs;
     using Tools::sign;
 
-    if (Const::isFirstOrder == "yes")   return;
+    if (Const::isFirstOrder == "yes")
+    {
+        for (label i = 0; i < numCells + 2; ++i) {
+            cells[i].sNe.setZero();
+            cells[i].sNi.setZero();
+            cells[i].sEe.setZero();
+            cells[i].sPhi.setZero();
+        }
+        return;
+    }
 
     // MUSCL-type slope limiter for computing a weighted average of left and right gradients
     auto slopeLimiter = [&](scalar fL, scalar fC, scalar fR, scalar dxL, scalar dxR) 
@@ -1278,8 +1781,9 @@ void FVM::Solver::updateFluidHBFCI()
     // ---------------GMRES -------------------
     KSPSetType(HBFCISolver, KSPGMRES);                                 
     KSPGetPC(HBFCISolver, &HBFCIPC);
-    PCSetType(HBFCIPC, PCHYPRE);
-    PCHYPRESetType(HBFCIPC,"boomeramg");   
+    PCSetType(HBFCIPC, PCSOR);
+    // PCSetType(HBFCIPC, PCHYPRE);
+    // PCHYPRESetType(HBFCIPC,"boomeramg");   
     KSPSetTolerances(HBFCISolver,
                  1e-8,   // rtol
                  1e-10,   // abstol
@@ -1289,6 +1793,16 @@ void FVM::Solver::updateFluidHBFCI()
     KSPSetFromOptions(HBFCISolver);                                
     // Solving: x = A⁻¹·b
     KSPSolve(HBFCISolver, rhsGlobal, incrementGlobal); 
+    PetscInt its;
+    KSPConvergedReason reason;
+    KSPGetIterationNumber(HBFCISolver, &its);
+    KSPGetConvergedReason(HBFCISolver, &reason);
+
+    if (reason < 0) {
+        std::cout << "⚠️ KSP failed to converge! Reason: " << reason << std::endl;
+    } else {
+        std::cout << "✅ KSP converged in " << its << " iterations.\n";
+    }
 
     // Update the solution
     for (label iT = 0; iT < numT; ++iT)
@@ -1336,6 +1850,220 @@ void FVM::Solver::updateFluidHBFCI()
     KSPDestroy(&HBFCISolver);  
 }
 
+void FVM::Solver::updateFluidHBPCI1()
+{
+    using namespace Const;
+    using namespace Tools;
+
+    // Create solver
+    KSP HBFCISolver;
+    // Create pre-conditioner
+    PC HBFCIPC;
+    KSPCreate(PETSC_COMM_SELF, &HBFCISolver); 
+
+    // Set coefficient matrix and pre-conditioner matrix                      
+    KSPSetOperators(HBFCISolver, jacobianAllGlobal, jacobianAllGlobal); 
+    
+    // ---------- LU decomposition ------------
+    KSPSetType(HBFCISolver, KSPPREONLY);
+    KSPGetPC(HBFCISolver, &HBFCIPC);
+    PCSetType(HBFCIPC, PCLU);
+
+    // ---------------GMRES -------------------
+    // KSPSetType(HBFCISolver, KSPGMRES);                                 
+    // KSPGetPC(HBFCISolver, &HBFCIPC);
+    // PCSetType(HBFCIPC, PCSOR);// SOR
+    // PCSetType(HBFCIPC, PCHYPRE);
+    // PCHYPRESetType(HBFCIPC,"boomeramg");   
+    // KSPSetTolerances(HBFCISolver,
+    //              1e-8,   // rtol
+    //              1e-10,   // abstol
+    //              PETSC_DEFAULT,     // dtol
+    //              1000);   // max_iter
+
+    KSPSetFromOptions(HBFCISolver);                                
+    // Solving: x = A⁻¹·b
+    KSPSolve(HBFCISolver, rhsGlobal, incrementGlobal); 
+
+    // PetscInt its;
+    // KSPConvergedReason reason;
+    // KSPGetIterationNumber(HBFCISolver, &its);
+    // KSPGetConvergedReason(HBFCISolver, &reason);
+
+    // if (reason < 0) {
+    //     std::cout << "⚠️ KSP failed to converge! Reason: " << reason << std::endl;
+    // } else {
+    //     std::cout << "✅ KSP converged in " << its << " iterations.\n";
+    // }
+
+    // Update the solution
+    for (label iT = 0; iT < numT; ++iT)
+    {
+        for (label i = 0; i < numCells; ++i)
+        {   PetscInt indices[3];
+            indices[0] = 3 * iT * numCells + 3 * i + 0; 
+            indices[1] = 3 * iT * numCells + 3 * i + 1;
+            indices[2] = 3 * iT * numCells + 3 * i + 2;
+
+            PetscScalar incrementW[3];
+
+            VecGetValues(incrementGlobal, 3, indices, incrementW);
+
+            cells[i].Ne(iT)  = cells[i].NeOld(iT)  + eps * incrementW[0];
+            cells[i].Ni(iT)  = cells[i].NiOld(iT)  + eps * incrementW[1];
+            cells[i].Ee(iT)  = cells[i].EeOld(iT)  + eps * incrementW[2];
+
+            // Update the electron temperature
+            cells[i].Te(iT)  = EeToTeND(cells[i].Ne(iT), cells[i].Ee(iT));
+        }
+    }
+    KSPDestroy(&HBFCISolver);  
+}
+
+
+void FVM::Solver::updateFluidHBPCI2()
+{
+    using namespace Const;
+    using namespace Tools;
+
+    // Create solver
+    KSP HBFCISolver;
+    // Create pre-conditioner
+    PC HBFCIPC;
+    KSPCreate(PETSC_COMM_SELF, &HBFCISolver); 
+
+    // Set coefficient matrix and pre-conditioner matrix                      
+    KSPSetOperators(HBFCISolver, jacobianAllGlobal, jacobianAllGlobal); 
+    
+    // ---------- LU decomposition ------------
+    KSPSetType(HBFCISolver, KSPPREONLY);
+    KSPGetPC(HBFCISolver, &HBFCIPC);
+    PCSetType(HBFCIPC, PCLU);
+
+    // ---------------GMRES -------------------
+    // KSPSetType(HBFCISolver, KSPGMRES);                                 
+    // KSPGetPC(HBFCISolver, &HBFCIPC);
+    // PCSetType(HBFCIPC, PCSOR);// SOR
+    // PCSetType(HBFCIPC, PCHYPRE);
+    // PCHYPRESetType(HBFCIPC,"boomeramg");   
+    // KSPSetTolerances(HBFCISolver,
+    //              1e-8,   // rtol
+    //              1e-10,   // abstol
+    //              PETSC_DEFAULT,     // dtol
+    //              1000);   // max_iter
+
+    KSPSetFromOptions(HBFCISolver);                                
+    // Solving: x = A⁻¹·b
+    KSPSolve(HBFCISolver, rhsGlobal, incrementGlobal); 
+
+    // PetscInt its;
+    // KSPConvergedReason reason;
+    // KSPGetIterationNumber(HBFCISolver, &its);
+    // KSPGetConvergedReason(HBFCISolver, &reason);
+
+    // if (reason < 0) {
+    //     std::cout << "⚠️ KSP failed to converge! Reason: " << reason << std::endl;
+    // } else {
+    //     std::cout << "✅ KSP converged in " << its << " iterations.\n";
+    // }
+
+    // Update the solution
+    for (label iT = 0; iT < numT; ++iT)
+    {
+        for (label i = 0; i < numCells; ++i)
+        {   PetscInt indices[3];
+            indices[0] = 3 * iT * numCells + 3 * i + 0; 
+            indices[1] = 3 * iT * numCells + 3 * i + 1;
+            indices[2] = 3 * iT * numCells + 3 * i + 2;
+
+            PetscScalar incrementW[3];
+
+            VecGetValues(incrementGlobal, 3, indices, incrementW);
+
+            cells[i].Ne(iT)   = cells[i].NeOld(iT)   + eps * incrementW[0];
+            cells[i].Ni(iT)   = cells[i].NiOld(iT)   + eps * incrementW[1];
+            cells[i].Phi(iT)  = cells[i].PhiOld(iT)  + eps * incrementW[2];
+
+            // Update the electron temperature
+            cells[i].Te(iT)  = EeToTeND(cells[i].Ne(iT), cells[i].Ee(iT));
+        }
+    }
+    KSPDestroy(&HBFCISolver);  
+}
+
+void FVM::Solver::updateEeHBPCI2(const label iRK)
+{
+    using namespace Const;
+    using namespace Tools;
+    getSlope();
+    evolve();
+    assembleGlobalVecRHSEe(iRK);
+    assembleLocalFluxJacobianEe();
+    assembleGlobalJacobianEe();
+    // Create solver
+    KSP HBFCISolver;
+    // Create pre-conditioner
+    PC HBFCIPC;
+    KSPCreate(PETSC_COMM_SELF, &HBFCISolver); 
+
+    // Set coefficient matrix and pre-conditioner matrix                      
+    KSPSetOperators(HBFCISolver, jacobianAllGlobal, jacobianAllGlobal); 
+    
+    // ---------- LU decomposition ------------
+    KSPSetType(HBFCISolver, KSPPREONLY);
+    KSPGetPC(HBFCISolver, &HBFCIPC);
+    PCSetType(HBFCIPC, PCLU);
+
+    // ---------------GMRES -------------------
+    // KSPSetType(HBFCISolver, KSPGMRES);                                 
+    // KSPGetPC(HBFCISolver, &HBFCIPC);
+    // PCSetType(HBFCIPC, PCSOR);// SOR
+    // PCSetType(HBFCIPC, PCHYPRE);
+    // PCHYPRESetType(HBFCIPC,"boomeramg");   
+    // KSPSetTolerances(HBFCISolver,
+    //              1e-8,   // rtol
+    //              1e-10,   // abstol
+    //              PETSC_DEFAULT,     // dtol
+    //              1000);   // max_iter
+
+    KSPSetFromOptions(HBFCISolver);                                
+    // Solving: x = A⁻¹·b
+    KSPSolve(HBFCISolver, rhsGlobal, incrementGlobal); 
+
+    // PetscInt its;
+    // KSPConvergedReason reason;
+    // KSPGetIterationNumber(HBFCISolver, &its);
+    // KSPGetConvergedReason(HBFCISolver, &reason);
+
+    // if (reason < 0) {
+    //     std::cout << "⚠️ KSP failed to converge! Reason: " << reason << std::endl;
+    // } else {
+    //     std::cout << "✅ KSP converged in " << its << " iterations.\n";
+    // }
+
+    // Update the solution
+    for (label iT = 0; iT < numT; ++iT)
+    {
+        for (label i = 0; i < numCells; ++i)
+        {   PetscInt indices[3];
+            indices[0] = 3 * iT * numCells + 3 * i + 0; 
+            indices[1] = 3 * iT * numCells + 3 * i + 1;
+            indices[2] = 3 * iT * numCells + 3 * i + 2;
+
+            PetscScalar incrementW[3];
+
+            VecGetValues(incrementGlobal, 3, indices, incrementW);
+
+            cells[i].Ne(iT)   = cells[i].NeOld(iT)   + eps * incrementW[0];
+            cells[i].Ni(iT)   = cells[i].NiOld(iT)   + eps * incrementW[1];
+            cells[i].Phi(iT)  = cells[i].PhiOld(iT)  + eps * incrementW[2];
+
+            // Update the electron temperature
+            cells[i].Te(iT)  = EeToTeND(cells[i].Ne(iT), cells[i].Ee(iT));
+        }
+    }
+    KSPDestroy(&HBFCISolver);  
+}
 
 
 void FVM::Solver::setBoundaryConditions()
@@ -1883,12 +2611,12 @@ void FVM::Solver::loadInitFile(const std::string &initFile)
         cells[cellID].Ne(iT)  = Ne;
         cells[cellID].Ni(iT)  = Ni;
         cells[cellID].Ee(iT)  = Ee;
-        cells[cellID].Te(iT)  = Te;
         cells[cellID].Phi(iT) = Phi;
+        cells[cellID].Te(iT)  = Tools::EeToTeND(Ne, Ee);
     }
 
     inFile.close();
-    std::cout << "✅ Restart data successfully loaded from " << initFile << '\n';
+    std::cout << "Restart data successfully loaded from " << initFile << '\n';
 }
 
 
@@ -2275,8 +3003,272 @@ void initDebugLogs()
 }
 
 
-
 void FVM::Solver::iterateHBFCI()
+{
+    using namespace Const;  
+    const auto stepStart = std::chrono::high_resolution_clock::now();// 少用auto
+ 
+    std::ofstream stopFile(outputDir +"/stop.dat", std::ios::trunc);
+    if (!stopFile.is_open()) 
+    {
+        std::cerr << "Error: Cannot create stop.dat file!" << std::endl;
+        return;
+    }
+    stopFile << "0" << std::endl; 
+    stopFile.close(); 
+
+    std::cout << "Starting iterating..." << std::endl;
+    while (step < stopStep)
+    {
+        std::ifstream checkStopFile(outputDir +"/stop.dat");
+        if (checkStopFile.is_open()) 
+        {
+            label stopSignal = 0;
+            checkStopFile >> stopSignal;
+            checkStopFile.close();
+
+            if (stopSignal == 1) { 
+                std::cout << "Stop signal received, exiting loop." << std::endl;
+                break; 
+            }
+        } 
+        else 
+        {
+            std::cerr << "Error: Cannot open stop.dat for reading!" << std::endl;
+        }
+
+        //- Get the time step for each cell
+        // std::cout << "Getting time step for each cell..." << std::endl;
+        getDtau();
+
+        //- Get the mass stiffness diagnal：vol / dtau
+        // std::cout << "Getting mass stiffness diagnal..." << std::endl;
+        getMassDiagnal();
+
+        //- Store the conservative variables from the last step 
+        // std::cout << "Storing conservative variables from the last step..." << std::endl;
+        initRK();
+
+        //- Runge-Kutta iteration
+        label iRK = 0;
+        while ( iRK < nRK )
+        {
+            assembleGlobalJacobianFDMForFirstCellFCI(0, 0);
+
+            //- Get the slopes based on MUSCL limiter
+            // std::cout << "Getting slopes for Runge-Kutta step " << iRK << "..." << std::endl;
+            getSlope();
+
+            //- Get the fluxes of each face
+            // std::cout << "Evolving fluxes for Runge-Kutta step " << iRK << "..." << std::endl;
+            evolve();
+
+            //- Get the global RHS vector
+            // std::cout << "Assembling global RHS vector for Runge-Kutta step " << iRK << "..." << std::endl;
+            assembleGlobalVecRHSFCI(iRK);
+
+            //- Get the local flux Jacobian
+            // std::cout << "Assembling local flux Jacobian for Runge-Kutta step " << iRK << "..." << std::endl;
+            assembleLocalFluxJacobianFCI();
+
+            //- Get the flux Joule Jacobian
+            // std::cout << "Getting flux Joule Jacobian for Runge-Kutta step " << iRK << "..." << std::endl;
+            getFluxJouleJacobianFCI();
+
+            //- Get the chemical source term Jacobian 
+            // std::cout << "Getting chemical source term Jacobian for Runge-Kutta step " << iRK << "..." << std::endl;
+            getCsJacobianFCI();
+
+            //- Get the global Jacobian
+            // std::cout << "Assembling global Jacobian for Runge-Kutta step " << iRK << "..." << std::endl; 
+            assembleGlobalJacobian();
+
+            dumpLocalBlocksFromGlobalJ(0, 0);
+
+            //- Solve the linear system and update the flow variables
+            // std::cout << "Solving linear system for Runge-Kutta step " << iRK << "..." << std::endl;
+            updateFluidHBFCI();
+
+            iRK++;
+        }
+        auto stepEnd = std::chrono::high_resolution_clock::now();
+        std::chrono::duration<scalar> wallTime = stepEnd - stepStart;
+
+        step++;
+
+        //- Setup the boundary conditions
+        // std::cout << "Setting up boundary conditions..." << std::endl;
+        setBoundaryConditions();
+
+        //- Calculate the residuals and print them
+        // std::cout << "Calculating and printing residuals..." << std::endl;
+        infoRes();
+
+        //- Write the residuals to the file
+        writeResidual(wallTime.count());
+
+        //- Check if negative states in the flow variables exist
+        try 
+        {
+            checkNegativeStates();
+        } 
+        catch (const std::exception& e) 
+        {
+            std::cerr << "[Negative State Error] " << e.what() << std::endl;
+            std::exit(EXIT_FAILURE);
+        }
+
+        //- Write the Quasi-steady solution to the output file
+        writeIterSolution();
+
+        if(analysisMode == AnalysisMode::HB)
+        {
+            //- Write the Fourier coefficients to the output file
+            writeFourierCoefficientsHB();
+
+            //- Write the reconstructed unsteady flow field to the output file
+            writeUnsteadyFlowFieldHB();    
+        }
+    }
+}
+
+
+void FVM::Solver::iterateHBPCI2()
+{
+    using namespace Const;  
+    const auto stepStart = std::chrono::high_resolution_clock::now();// 少用auto
+ 
+    std::ofstream stopFile(outputDir +"/stop.dat", std::ios::trunc);
+    if (!stopFile.is_open()) 
+    {
+        std::cerr << "Error: Cannot create stop.dat file!" << std::endl;
+        return;
+    }
+    stopFile << "0" << std::endl; 
+    stopFile.close(); 
+
+    std::cout << "Starting iterating..." << std::endl;
+    while (step < stopStep)
+    {
+        std::ifstream checkStopFile(outputDir +"/stop.dat");
+        if (checkStopFile.is_open()) 
+        {
+            label stopSignal = 0;
+            checkStopFile >> stopSignal;
+            checkStopFile.close();
+
+            if (stopSignal == 1) { 
+                std::cout << "Stop signal received, exiting loop." << std::endl;
+                break; 
+            }
+        } 
+        else 
+        {
+            std::cerr << "Error: Cannot open stop.dat for reading!" << std::endl;
+        }
+
+        //- Get the time step for each cell
+        // std::cout << "Getting time step for each cell..." << std::endl;
+        getDtau();
+
+        //- Get the mass stiffness diagnal：vol / dtau
+        // std::cout << "Getting mass stiffness diagnal..." << std::endl;
+        getMassDiagnal();
+
+        //- Store the conservative variables from the last step 
+        // std::cout << "Storing conservative variables from the last step..." << std::endl;
+        initRK();
+
+        //- Runge-Kutta iteration
+        label iRK = 0;
+        while ( iRK < nRK )
+        {
+            // assembleGlobalJacobianFDMForFirstCellFCI(0, 0);
+            //- Get the slopes based on MUSCL limiter
+            // std::cout << "Getting slopes for Runge-Kutta step " << iRK << "..." << std::endl;
+            getSlope();
+
+            //- Get the fluxes of each face
+            // std::cout << "Evolving fluxes for Runge-Kutta step " << iRK << "..." << std::endl;
+            evolve();
+
+            //- Get the global RHS vector
+            // std::cout << "Assembling global RHS vector for Runge-Kutta step " << iRK << "..." << std::endl;
+            assembleGlobalVecRHSPCI2(iRK);
+
+            //- Get the local flux Jacobian
+            // std::cout << "Assembling local flux Jacobian for Runge-Kutta step " << iRK << "..." << std::endl;
+            assembleLocalFluxJacobianPCI2();
+
+            //- Get the chemical source term Jacobian 
+            // std::cout << "Getting chemical source term Jacobian for Runge-Kutta step " << iRK << "..." << std::endl;
+            getCsJacobianPCI2();
+
+            //- Get the global Jacobian
+            // std::cout << "Assembling global Jacobian for Runge-Kutta step " << iRK << "..." << std::endl; 
+            assembleGlobalJacobianPCI2();
+
+            //- Solve the linear system and update  Ne, Ni and Phi
+            // std::cout << "Solving linear system for Runge-Kutta step " << iRK << "..." << std::endl;
+            updateFluidHBPCI2();
+
+            //- Solve the linear system and update Ee and Te
+            // std::cout << "Solving linear system for Runge-Kutta step " << iRK << "..." << std::endl;
+            updateEeHBPCI2(iRK);
+
+
+            //- Get the flux Joule Jacobian
+            // std::cout << "Getting flux Joule Jacobian for Runge-Kutta step " << iRK << "..." << std::endl;
+            getFluxJouleJacobianFCI();
+
+
+            iRK++;
+        }
+        auto stepEnd = std::chrono::high_resolution_clock::now();
+        std::chrono::duration<scalar> wallTime = stepEnd - stepStart;
+
+        step++;
+
+        //- Setup the boundary conditions
+        // std::cout << "Setting up boundary conditions..." << std::endl;
+        setBoundaryConditions();
+
+        //- Calculate the residuals and print them
+        // std::cout << "Calculating and printing residuals..." << std::endl;
+        infoRes();
+
+        //- Write the residuals to the file
+        writeResidual(wallTime.count());
+
+        //- Check if negative states in the flow variables exist
+        try 
+        {
+            checkNegativeStates();
+        } 
+        catch (const std::exception& e) 
+        {
+            std::cerr << "[Negative State Error] " << e.what() << std::endl;
+            std::exit(EXIT_FAILURE);
+        }
+
+        //- Write the Quasi-steady solution to the output file
+        writeIterSolution();
+
+        if(analysisMode == AnalysisMode::HB)
+        {
+            //- Write the Fourier coefficients to the output file
+            writeFourierCoefficientsHB();
+
+            //- Write the reconstructed unsteady flow field to the output file
+            writeUnsteadyFlowFieldHB();    
+        }
+    }
+}
+
+
+
+
+void FVM::Solver::iterateHBPCI1()
 {
     using namespace Const;  
     const auto stepStart = std::chrono::high_resolution_clock::now();// 少用auto
@@ -2336,19 +3328,19 @@ void FVM::Solver::iterateHBFCI()
 
             //- Get the global RHS vector
             // std::cout << "Assembling global RHS vector for Runge-Kutta step " << iRK << "..." << std::endl;
-            assembleGlobalVecRHS(iRK);
+            assembleGlobalVecRHSPCI1(iRK);
 
             //- Get the local flux Jacobian
             // std::cout << "Assembling local flux Jacobian for Runge-Kutta step " << iRK << "..." << std::endl;
-            assembleLocalFluxJacobian();
+            assembleLocalFluxJacobianPCI1();
 
             //- Get the flux Joule Jacobian
             // std::cout << "Getting flux Joule Jacobian for Runge-Kutta step " << iRK << "..." << std::endl;
-            getFluxJouleJacobian();
+            getFluxJouleJacobianPCI1();
 
             //- Get the chemical source term Jacobian 
             // std::cout << "Getting chemical source term Jacobian for Runge-Kutta step " << iRK << "..." << std::endl;
-            getCsJacobian();
+            getCsJacobianPCI1();
 
             //- Get the global Jacobian
             // std::cout << "Assembling global Jacobian for Runge-Kutta step " << iRK << "..." << std::endl; 
@@ -2356,7 +3348,14 @@ void FVM::Solver::iterateHBFCI()
 
             //- Solve the linear system and update the flow variables
             // std::cout << "Solving linear system for Runge-Kutta step " << iRK << "..." << std::endl;
-            updateFluidHBFCI();
+            updateFluidHBPCI1();
+
+            // 
+            updatePhiFVM();
+            
+            //- Setup the boundary conditions
+            // std::cout << "Setting up boundary conditions..." << std::endl;
+            setBoundaryConditions();
 
             iRK++;
         }
@@ -2364,10 +3363,6 @@ void FVM::Solver::iterateHBFCI()
         std::chrono::duration<scalar> wallTime = stepEnd - stepStart;
 
         step++;
-
-        //- Setup the boundary conditions
-        // std::cout << "Setting up boundary conditions..." << std::endl;
-        setBoundaryConditions();
 
         //- Calculate the residuals and print them
         // std::cout << "Calculating and printing residuals..." << std::endl;
@@ -2390,6 +3385,9 @@ void FVM::Solver::iterateHBFCI()
         //- Write the Quasi-steady solution to the output file
         writeIterSolution();
 
+        //- Write final solution for initialization
+        writeFinalSolution();
+
         if(analysisMode == AnalysisMode::HB)
         {
             //- Write the Fourier coefficients to the output file
@@ -2399,11 +3397,6 @@ void FVM::Solver::iterateHBFCI()
             writeUnsteadyFlowFieldHB();    
         }
     }
-}
-
-void FVM::Solver::iterateHBPCI1()
-{
-
 }
 
 int main(int argc, char *argv[])
@@ -2496,6 +3489,11 @@ int main(int argc, char *argv[])
         {
             std::cout << "Running HB implicitly coupling governing equations 1 2 3!" << std::endl;
             ccp.iterateHBPCI1();
+        }
+        else if(implicitScheme == ImplicitScheme::PCI2)
+        {
+            std::cout << "Running HB implicitly coupling governing equations 1 2 4!" << std::endl;
+            ccp.iterateHBPCI2();
         }
         else if (implicitScheme == ImplicitScheme::FCI)
         {

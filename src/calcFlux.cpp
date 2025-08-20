@@ -18,7 +18,8 @@ void FVM::Face::getFlux()
         // Get upwinded variables based on direction of electric potential 
         const scalar NeC    = getUpwind(NeL(iT), NeR(iT), iT);
         const scalar NiC    = getDownwind(NiL(iT), NiR(iT), iT);
-        const scalar TeC    = getUpwind(TeL(iT), TeR(iT), iT);  
+        // const scalar TeC    = getUpwind(TeL(iT), TeR(iT), iT); 
+        const scalar TeC2    = getUpwind(EeL(iT) / NeL(iT), EeR(iT) / NeR(iT), iT);   
         const scalar PhiC   = getUpwind(PhiL(iT), PhiR(iT), iT);
 
         // Electric field intensity at the face
@@ -30,7 +31,7 @@ void FVM::Face::getFlux()
         // Energy transport equation for electron
         // This flux is not good. Next time we need to use fluxNe
         const scalar qE    = - 5.0 / 3.0 * De * NeC * dTe 
-                           +   5.0 / 3.0 * TeC * fluxNe(iT);
+                           +   5.0 / 3.0 * TeC2 * fluxNe(iT);
         const scalar dPhiJ = - e * PhiC * fluxNe(iT);
         const scalar dJ    = e * fluxNe(iT);
 
@@ -46,12 +47,12 @@ void FVM::Face::getFluxLeftBC()
     scalar Je;
     for (label iT = 0; iT < numT; ++iT)
     {
-        const scalar dTe    = getDiff(TeL(iT),  cellR.Te(iT));
+        // const scalar dTe    = getDiff(TeL(iT),  TeR(iT));
         // Electric field at the face
         Ef(iT)             = - (cellR.Phi(iT) - PhiL(iT)) / dist;
 
         // Coefficient related to the thermal velocity
-        const scalar k     = 0.25 * sqrt(TeR(iT));
+        const scalar k     = 0.25 * sqrt(EeR(iT) / NeR(iT));
 
         // Restriction towards flux of electron flux
         Je                 = (Ef(iT) > 0 ? - muE * NeR(iT) * Ef(iT) : 0.0);
@@ -61,8 +62,10 @@ void FVM::Face::getFluxLeftBC()
         fluxNe(iT)         = (- k  * NeR(iT)  - Gam * fluxNi(iT) + Je);
         fluxPhi(iT)        = - Ef(iT) * eps0;
 
-        const scalar qE    = - 5.0 / 3.0 * De * NeR(iT) * dTe
-                             + 5.0 / 3.0 * TeR(iT) * fluxNe(iT);
+        // const scalar qE    = - 5.0 / 3.0 * De * NeR(iT) * dTe
+        //                      + 5.0 / 3.0 * TeR(iT) * fluxNe(iT);
+        const scalar qE    = 5.0 / 3.0 * EeR(iT) / NeR(iT) * fluxNe(iT);
+        // const scalar qE    = 5.0 / 3.0 * TeR(iT) * fluxNe(iT);
         const scalar phiJ  = - e * PhiR(iT) * fluxNe(iT);
         const scalar dJ    = e * fluxNe(iT);
 
@@ -78,12 +81,12 @@ void FVM::Face::getFluxRightBC()
 
     for (label iT = 0; iT < Const::numT; ++iT)
     {
-        const scalar dTe    = getDiff(cellL.Te(iT), TeR(iT));
+        // const scalar dTe    = getDiff(TeL(iT), TeR(iT));
         // Electric field at the face        
         Ef(iT)             = - (PhiR(iT) - cellL.Phi(iT)) / dist; 
 
         // Coefficient related to the thermal velocity
-        const scalar k     = 0.25 * sqrt(TeL(iT));
+        const scalar k     = 0.25 * sqrt(EeL(iT) / NeL(iT));
 
         const scalar Je                 = (Ef(iT) < 0 ? -muE * NeL(iT) * Ef(iT) : 0.0);
 
@@ -92,8 +95,10 @@ void FVM::Face::getFluxRightBC()
         fluxNe(iT)         =  k * NeL(iT) - Gam * fluxNi(iT) + Je;
         fluxPhi(iT)        = - Ef(iT) * eps0;
 
-        const scalar qE    = - 5.0 / 3.0 * De * NeL(iT) * dTe
-                             + 5.0 / 3.0 * TeL(iT) * fluxNe(iT);
+        // const scalar qE    = - 5.0 / 3.0 * De * NeL(iT) * dTe
+        //                      + 5.0 / 3.0 * TeL(iT) * fluxNe(iT);
+        const scalar qE    = 5.0 / 3.0 * EeL(iT) / NeL(iT) * fluxNe(iT);
+        // const scalar qE    = 5.0 / 3.0 * TeL(iT) * fluxNe(iT);
 
         const scalar phiJ  = - e * PhiL(iT) * fluxNe(iT);
         const scalar dJ    = e * fluxNe(iT);

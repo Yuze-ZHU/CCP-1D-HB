@@ -29,7 +29,8 @@ enum class AnalysisMode { STEADY, DT, HB };
 // NO  	: No implicit scheme, all equations are solved explicitly
 // FCI  ：Implicitly couples all governing equation including the Poisson equation
 // PCI1 : Implicitly couples all governing equations except the Poisson equation
-enum class ImplicitScheme { NO, FCI, PCI1 };
+// PCI2 : Implicitly couples all gocerning equations except the Electric Energy equation
+enum class ImplicitScheme { NO, FCI, PCI1, PCI2};
 
 // Conditions to stop the simulation:
 // TIME   : Stop when a specified physical time is reached

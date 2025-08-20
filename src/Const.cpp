@@ -752,7 +752,8 @@ namespace Const
         L = coords[numNodes - 1].x - coords[0].x;
 
         // Calculate the blocksize
-        if (implicitScheme == ImplicitScheme::PCI1)
+        if (implicitScheme == ImplicitScheme::PCI1
+            || implicitScheme == ImplicitScheme::PCI2)
         {
             blockSizeS = 3;
             blockSizeM = blockSizeS * numCells;
